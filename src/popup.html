@@ -128,13 +128,84 @@
     .select-all {
       margin-bottom: 10px;
     }
+
+    .folder-selection {
+      margin-bottom: 15px;
+      padding: 10px;
+      background: #f9f9f9;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+    }
+
+    .folder-group {
+      margin-bottom: 12px;
+    }
+
+    .folder-group:last-child {
+      margin-bottom: 0;
+    }
+
+    .folder-group label {
+      display: block;
+      font-weight: 500;
+      font-size: 13px;
+      color: #333;
+      margin-bottom: 5px;
+    }
+
+    .folder-group select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 13px;
+      background: white;
+      cursor: pointer;
+    }
+
+    .folder-group select:focus {
+      outline: none;
+      border-color: #1976d2;
+    }
+
+    .folder-info {
+      font-size: 11px;
+      color: #999;
+      margin-top: 3px;
+    }
   </style>
 </head>
 <body>
   <h1>🗂️ Gmail Archive Deduplicator</h1>
 
+  <div class="folder-selection">
+    <div class="folder-group">
+      <label for="archiveFolder">Lokální archivní složka:</label>
+      <select id="archiveFolder">
+        <option value="">-- Načítám složky... --</option>
+      </select>
+      <div class="folder-info">Složka s vašimi archivovanými emaily</div>
+    </div>
+
+    <div class="folder-group">
+      <label for="gmailAllMail">Gmail - Všechny zprávy:</label>
+      <select id="gmailAllMail">
+        <option value="">-- Načítám složky... --</option>
+      </select>
+      <div class="folder-info">Gmail složka "All Mail" / "Všechny zprávy"</div>
+    </div>
+
+    <div class="folder-group">
+      <label for="gmailTrash">Gmail - Koš:</label>
+      <select id="gmailTrash">
+        <option value="">-- Načítám složky... --</option>
+      </select>
+      <div class="folder-info">Gmail složka "Trash" / "Koš"</div>
+    </div>
+  </div>
+
   <div id="status" class="status">
-    Připraveno k analýze
+    Vyberte složky a klikněte na "Vyhledat duplicity"
   </div>
 
   <div class="actions">
