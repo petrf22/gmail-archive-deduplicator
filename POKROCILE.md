@@ -16,9 +16,7 @@ const folders = await findFolderByName(account.folders, [
 // Pro Gmail All Mail (řádek ~53)
 const folders = await findFolderByName(account.folders, [
   '[Gmail]/All Mail', 
-  'All Mail', 
-  '[Gmail]/Všechna pošta',
-  'VÁŠ_GMAIL_NÁZEV'  // Přidejte vlastní název
+  '[Gmail]/Všechny zprávy'
 ]);
 ```
 

@@ -59,7 +59,7 @@ async function findGmailAllMailFolder() {
   for (const account of accounts) {
     // Hledáme IMAP účty (Gmail)
     if (account.type === 'imap') {
-      const folders = await findFolderByName(account.folders, ['[Gmail]/All Mail', 'All Mail', '[Gmail]/Všechny zprávy']);
+      const folders = await findFolderByName(account.folders, ['[Gmail]/All Mail', '[Gmail]/Všechny zprávy']);
       if (folders.length > 0) {
         return folders[0];
       }
