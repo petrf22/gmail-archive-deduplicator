@@ -1,0 +1,35 @@
+{
+  "manifest_version": 2,
+  "name": "Gmail Archive Deduplicator",
+  "description": "Odstraňuje duplicitní emaily mezi lokálním archivem a Gmail účtem",
+  "version": "1.0",
+  "author": "Váš jméno",
+  "applications": {
+    "gecko": {
+      "id": "gmail-deduplicator@example.com",
+      "strict_min_version": "102.0"
+    }
+  },
+  "permissions": [
+    "accountsRead",
+    "messagesRead",
+    "messagesMove",
+    "messagesDelete"
+  ],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "browser_action": {
+    "default_popup": "popup.html",
+    "default_title": "Gmail Archive Deduplicator",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png"
+  }
+}

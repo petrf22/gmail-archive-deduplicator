@@ -1,0 +1,18 @@
+<svg width="48" height="48" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="48" height="48" rx="8" fill="#1976d2"/>
+  
+  <!-- Envelope base -->
+  <rect x="8" y="14" width="32" height="20" rx="2" fill="white"/>
+  
+  <!-- Envelope flap -->
+  <path d="M 8 14 L 24 26 L 40 14" stroke="white" stroke-width="2" fill="none"/>
+  
+  <!-- Gmail colors on top -->
+  <circle cx="36" cy="36" r="8" fill="#EA4335"/>
+  <path d="M 36 32 L 36 36 L 40 36" stroke="white" stroke-width="2" fill="none" stroke-linecap="round"/>
+  
+  <!-- Duplicate indicator (two overlapping rectangles) -->
+  <rect x="10" y="16" width="10" height="8" rx="1" fill="#e3f2fd" opacity="0.7"/>
+  <rect x="12" y="18" width="10" height="8" rx="1" fill="#bbdefb" opacity="0.9"/>
+</svg>
