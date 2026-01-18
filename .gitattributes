@@ -1,0 +1,9 @@
+# Výchozí chování - automatická detekce textu
+* text=auto
+
+# Shell skripty - vždy LF (Unix)
+*.sh text eol=lf
+
+# Batch soubory - vždy CRLF (Windows)
+*.bat text eol=crlf
+*.cmd text eol=crlf
