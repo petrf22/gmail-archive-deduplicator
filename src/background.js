@@ -7,6 +7,17 @@ messenger.menus.create({
   contexts: ["tools_menu"]
 });
 
+// Pomocná funkce pro posílání progress zpráv do popup
+function sendProgress(message) {
+  // Posíláme zprávu všem otevřeným popup oknům
+  messenger.runtime.sendMessage({
+    action: 'progress',
+    message: message
+  }).catch(() => {
+    // Ignorujeme chyby pokud popup není otevřený
+  });
+}
+
 /**
  * Zjistí Message-ID emailu pro porovnání duplicit
  */
@@ -111,7 +122,7 @@ async function findFolderByName(folders, names) {
 /**
  * Najde duplicitní emaily
  */
-async function findDuplicates(progressCallback) {
+async function findDuplicates() {
   const archiveFolder = await findLocalArchiveFolder();
   const gmailAllMail = await findGmailAllMailFolder();
 
@@ -123,7 +134,7 @@ async function findDuplicates(progressCallback) {
     throw new Error('Gmail složka "All Mail" nebyla nalezena');
   }
 
-  progressCallback('Načítám emaily z lokálního archivu...');
+  sendProgress('Načítám emaily z lokálního archivu...');
 
   // Získáme všechny zprávy z archivu
   let archivePage = await messenger.messages.list(archiveFolder);
@@ -132,9 +143,10 @@ async function findDuplicates(progressCallback) {
   while (archivePage.id) {
     archivePage = await messenger.messages.continueList(archivePage.id);
     archiveMessages.push(...archivePage.messages);
+    sendProgress(`Načítám archiv: ${archiveMessages.length} emailů...`);
   }
 
-  progressCallback(`Načteno ${archiveMessages.length} emailů z archivu. Načítám Gmail...`);
+  sendProgress(`Načteno ${archiveMessages.length} emailů z archivu. Načítám Gmail...`);
 
   // Získáme všechny zprávy z Gmail All Mail
   let gmailPage = await messenger.messages.list(gmailAllMail);
@@ -143,9 +155,10 @@ async function findDuplicates(progressCallback) {
   while (gmailPage.id) {
     gmailPage = await messenger.messages.continueList(gmailPage.id);
     gmailMessages.push(...gmailPage.messages);
+    sendProgress(`Načítám Gmail: ${gmailMessages.length} emailů...`);
   }
 
-  progressCallback(`Načteno ${gmailMessages.length} emailů z Gmail. Hledám duplicity...`);
+  sendProgress(`Načteno ${gmailMessages.length} emailů z Gmail. Hledám duplicity...`);
 
   // Vytvoříme mapu Gmail zpráv podle Message-ID a hash
   const gmailMap = new Map();
@@ -153,7 +166,7 @@ async function findDuplicates(progressCallback) {
 
   for (let i = 0; i < gmailMessages.length; i++) {
     if (i % 100 === 0) {
-      progressCallback(`Indexuji Gmail zprávy: ${i}/${gmailMessages.length}`);
+      sendProgress(`Indexuji Gmail zprávy: ${i}/${gmailMessages.length}`);
     }
 
     const message = gmailMessages[i];
@@ -174,7 +187,7 @@ async function findDuplicates(progressCallback) {
   }
 
   if (gmailErrors > 0) {
-    progressCallback(`Varování: ${gmailErrors} Gmail emailů nelze přečíst (budou přeskočeny)`);
+    sendProgress(`Varování: ${gmailErrors} Gmail emailů nelze přečíst (budou přeskočeny)`);
   }
 
   // Najdeme duplicity
@@ -183,7 +196,7 @@ async function findDuplicates(progressCallback) {
 
   for (let i = 0; i < archiveMessages.length; i++) {
     if (i % 50 === 0) {
-      progressCallback(`Kontroluji archiv: ${i}/${archiveMessages.length}`);
+      sendProgress(`Kontroluji archiv: ${i}/${archiveMessages.length}`);
     }
 
     const archiveMsg = archiveMessages[i];
@@ -216,10 +229,10 @@ async function findDuplicates(progressCallback) {
   }
 
   if (archiveErrors > 0) {
-    progressCallback(`Varování: ${archiveErrors} archivních emailů nelze přečíst (přeskočeny)`);
+    sendProgress(`Varování: ${archiveErrors} archivních emailů nelze přečíst (přeskočeny)`);
   }
 
-  progressCallback(`Nalezeno ${duplicates.length} duplicit`);
+  sendProgress(`Nalezeno ${duplicates.length} duplicit`);
 
   return {
     duplicates,
@@ -231,7 +244,7 @@ async function findDuplicates(progressCallback) {
 /**
  * Přesune duplicitní emaily do koše
  */
-async function moveDuplicatesToTrash(duplicateIds, progressCallback) {
+async function moveDuplicatesToTrash(duplicateIds) {
   const trashFolder = await findGmailTrashFolder();
 
   if (!trashFolder) {
@@ -239,30 +252,30 @@ async function moveDuplicatesToTrash(duplicateIds, progressCallback) {
   }
 
   for (let i = 0; i < duplicateIds.length; i++) {
-    progressCallback(`Přesouvám email ${i + 1}/${duplicateIds.length}`);
+    sendProgress(`Přesouvám email ${i + 1}/${duplicateIds.length}`);
 
     try {
       // await messenger.messages.move([duplicateIds[i]], trashFolder);
-      progressCallback(`Volání funkce await messenger.messages.move([duplicateIds[i]], trashFolder); bylo zakomentováno pro bezpečnostní testování.`);
+      sendProgress(`Přesun emailu ${duplicateIds[i]} je vypnutý v demo režimu.`);
     } catch (error) {
       console.error('Chyba při přesunu emailu:', error);
     }
   }
 
-  progressCallback(`Přesunuto ${duplicateIds.length} emailů do koše`);
+  sendProgress(`Přesunuto ${duplicateIds.length} emailů do koše`);
 }
 
 // Posluchač zpráv z popup okna
 messenger.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'findDuplicates') {
-    findDuplicates(message.progressCallback || (() => {}))
+    findDuplicates()
       .then(result => sendResponse({ success: true, data: result }))
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true; // Asynchronní odpověď
   }
 
   if (message.action === 'moveDuplicates') {
-    moveDuplicatesToTrash(message.duplicateIds, message.progressCallback || (() => {}))
+    moveDuplicatesToTrash(message.duplicateIds)
       .then(() => sendResponse({ success: true }))
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true;

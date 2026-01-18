@@ -10,6 +10,13 @@ const counterDiv = document.getElementById('counter');
 const selectAllCheckbox = document.getElementById('selectAll');
 const selectAllContainer = document.getElementById('selectAllContainer');
 
+// Naslouchání progress zprávám z background.js
+messenger.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message.action === 'progress') {
+    updateStatus(message.message, 'loading');
+  }
+});
+
 /**
  * Aktualizuje status zprávu
  */
@@ -38,7 +45,7 @@ function formatDate(dateString) {
  */
 function displayDuplicates(duplicates) {
   duplicatesList.innerHTML = '';
-
+  
   if (duplicates.length === 0) {
     updateStatus('Žádné duplicity nebyly nalezeny', 'success');
     duplicatesList.style.display = 'none';
@@ -46,11 +53,11 @@ function displayDuplicates(duplicates) {
     counterDiv.style.display = 'none';
     return;
   }
-
+  
   duplicates.forEach((dup, index) => {
     const item = document.createElement('div');
     item.className = 'duplicate-item';
-
+    
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
     checkbox.className = 'duplicate-checkbox';
@@ -58,27 +65,27 @@ function displayDuplicates(duplicates) {
     checkbox.checked = true;
     checkbox.dataset.gmailId = dup.gmailMessage.id;
     checkbox.addEventListener('change', updateCounter);
-
+    
     const info = document.createElement('div');
     info.className = 'duplicate-info';
-
+    
     const subject = document.createElement('div');
     subject.className = 'duplicate-subject';
     subject.textContent = dup.subject || '(Bez předmětu)';
-
+    
     const details = document.createElement('div');
     details.className = 'duplicate-details';
     details.textContent = `Od: ${dup.author || 'Neznámý'} | ${formatDate(dup.date)}`;
-
+    
     info.appendChild(subject);
     info.appendChild(details);
-
+    
     item.appendChild(checkbox);
     item.appendChild(info);
-
+    
     duplicatesList.appendChild(item);
   });
-
+  
   duplicatesList.style.display = 'block';
   selectAllContainer.style.display = 'block';
   moveBtn.style.display = 'inline-block';
@@ -92,10 +99,10 @@ function displayDuplicates(duplicates) {
 function updateCounter() {
   const checkboxes = document.querySelectorAll('.duplicate-checkbox');
   const checked = document.querySelectorAll('.duplicate-checkbox:checked');
-
+  
   counterDiv.textContent = `Vybráno: ${checked.length} z ${checkboxes.length}`;
   counterDiv.style.display = 'block';
-
+  
   moveBtn.disabled = checked.length === 0;
 }
 
@@ -110,11 +117,11 @@ async function scanForDuplicates() {
     selectAllContainer.style.display = 'none';
     counterDiv.style.display = 'none';
     updateStatus('Spouštím analýzu...', 'loading');
-
+    
     const response = await messenger.runtime.sendMessage({
       action: 'findDuplicates'
     });
-
+    
     if (response.success) {
       duplicatesData = response.data.duplicates;
       displayDuplicates(duplicatesData);
@@ -134,46 +141,46 @@ async function scanForDuplicates() {
 async function moveDuplicates() {
   const checkboxes = document.querySelectorAll('.duplicate-checkbox:checked');
   const gmailIds = Array.from(checkboxes).map(cb => parseInt(cb.dataset.gmailId));
-
+  
   if (gmailIds.length === 0) {
     updateStatus('Není vybrán žádný email', 'error');
     return;
   }
-
+  
   const confirmed = confirm(
     `Opravdu chcete přesunout ${gmailIds.length} emailů do koše Gmail?\n\n` +
     'Tato akce odstraní duplicitní emaily z Gmail účtu (ze složky All Mail).'
   );
-
+  
   if (!confirmed) {
     return;
   }
-
+  
   try {
     moveBtn.disabled = true;
     scanBtn.disabled = true;
     updateStatus(`Přesouvám ${gmailIds.length} emailů...`, 'loading');
-
+    
     const response = await messenger.runtime.sendMessage({
       action: 'moveDuplicates',
       duplicateIds: gmailIds
     });
-
+    
     if (response.success) {
       updateStatus('Emaily byly úspěšně přesunuty do koše', 'success');
-
+      
       // Odstraníme přesunuté položky ze seznamu
       checkboxes.forEach(cb => {
         cb.closest('.duplicate-item').remove();
       });
-
+      
       // Aktualizujeme data
-      duplicatesData = duplicatesData.filter(dup =>
+      duplicatesData = duplicatesData.filter(dup => 
         !gmailIds.includes(dup.gmailMessage.id)
       );
-
+      
       updateCounter();
-
+      
       if (duplicatesData.length === 0) {
         duplicatesList.style.display = 'none';
         selectAllContainer.style.display = 'none';
