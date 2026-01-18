@@ -1,5 +1,12 @@
 // background.js - Hlavní logika doplňku
 
+// Vytvoření položky v menu Nástroje při startu
+messenger.menus.create({
+  id: "open-deduplicator",
+  title: "Gmail Archive Deduplicator",
+  contexts: ["tools_menu"]
+});
+
 /**
  * Zjistí Message-ID emailu pro porovnání duplicit
  */
@@ -52,7 +59,7 @@ async function findGmailAllMailFolder() {
   for (const account of accounts) {
     // Hledáme IMAP účty (Gmail)
     if (account.type === 'imap') {
-      const folders = await findFolderByName(account.folders, ['[Gmail]/All Mail', 'All Mail', '[Gmail]/Všechna pošta']);
+      const folders = await findFolderByName(account.folders, ['[Gmail]/All Mail', 'All Mail', '[Gmail]/Všechny zprávy']);
       if (folders.length > 0) {
         return folders[0];
       }
@@ -212,7 +219,8 @@ async function moveDuplicatesToTrash(duplicateIds, progressCallback) {
     progressCallback(`Přesouvám email ${i + 1}/${duplicateIds.length}`);
 
     try {
-      await messenger.messages.move([duplicateIds[i]], trashFolder);
+      // await messenger.messages.move([duplicateIds[i]], trashFolder);
+      progressCallback(`Volání funkce await messenger.messages.move([duplicateIds[i]], trashFolder); bylo zakomentováno pro bezpečnostní testování.`);
     } catch (error) {
       console.error('Chyba při přesunu emailu:', error);
     }
@@ -235,5 +243,18 @@ messenger.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .then(() => sendResponse({ success: true }))
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true;
+  }
+});
+
+// Handler pro kliknutí na položku v Tools menu
+messenger.menus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId === "open-deduplicator") {
+    // Otevře popup v novém okně
+    await messenger.windows.create({
+      url: 'popup.html',
+      type: 'popup',
+      width: 650,
+      height: 500
+    });
   }
 });

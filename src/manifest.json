@@ -14,7 +14,8 @@
     "accountsRead",
     "messagesRead",
     "messagesMove",
-    "messagesDelete"
+    "messagesDelete",
+    "menus"
   ],
   "background": {
     "scripts": ["background.js"]
