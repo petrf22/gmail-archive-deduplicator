@@ -16,7 +16,8 @@ async function getMessageId(messageId) {
     // Message-ID je nejspolehlivější identifikátor emailu
     return full.headers['message-id'] ? full.headers['message-id'][0] : null;
   } catch (error) {
-    console.error('Chyba při získávání Message-ID:', error);
+    // Některé zprávy nelze přečíst (poškozené, přesouvané, nedostupné)
+    // To je normální, prostě je přeskočíme
     return null;
   }
 }
@@ -148,6 +149,7 @@ async function findDuplicates(progressCallback) {
 
   // Vytvoříme mapu Gmail zpráv podle Message-ID a hash
   const gmailMap = new Map();
+  let gmailErrors = 0;
 
   for (let i = 0; i < gmailMessages.length; i++) {
     if (i % 100 === 0) {
@@ -158,14 +160,26 @@ async function findDuplicates(progressCallback) {
     const messageId = await getMessageId(message.id);
     const hash = await getMessageHash(message);
 
+    if (messageId === null && hash === null) {
+      gmailErrors++;
+      continue; // Přeskočíme nečitelné zprávy
+    }
+
     if (messageId) {
       gmailMap.set(messageId, message);
     }
-    gmailMap.set(hash, message);
+    if (hash) {
+      gmailMap.set(hash, message);
+    }
+  }
+
+  if (gmailErrors > 0) {
+    progressCallback(`Varování: ${gmailErrors} Gmail emailů nelze přečíst (budou přeskočeny)`);
   }
 
   // Najdeme duplicity
   const duplicates = [];
+  let archiveErrors = 0;
 
   for (let i = 0; i < archiveMessages.length; i++) {
     if (i % 50 === 0) {
@@ -176,11 +190,16 @@ async function findDuplicates(progressCallback) {
     const messageId = await getMessageId(archiveMsg.id);
     const hash = await getMessageHash(archiveMsg);
 
+    if (messageId === null && hash === null) {
+      archiveErrors++;
+      continue; // Přeskočíme nečitelné zprávy
+    }
+
     let gmailMsg = null;
 
     if (messageId && gmailMap.has(messageId)) {
       gmailMsg = gmailMap.get(messageId);
-    } else if (gmailMap.has(hash)) {
+    } else if (hash && gmailMap.has(hash)) {
       gmailMsg = gmailMap.get(hash);
     }
 
@@ -194,6 +213,10 @@ async function findDuplicates(progressCallback) {
         author: archiveMsg.author
       });
     }
+  }
+
+  if (archiveErrors > 0) {
+    progressCallback(`Varování: ${archiveErrors} archivních emailů nelze přečíst (přeskočeny)`);
   }
 
   progressCallback(`Nalezeno ${duplicates.length} duplicit`);
