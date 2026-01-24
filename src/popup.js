@@ -381,6 +381,25 @@ async function stopOperation() {
   }
 }
 
+
+/**
+ * Upraví výšku seznamu duplicit podle velikosti okna
+ */
+function adjustLayoutForWindowSize() {
+  const windowHeight = window.innerHeight;
+  const duplicatesList = document.getElementById('duplicatesList');
+  
+  // Vypočítáme dostupnou výšku pro seznam
+  // Odečteme místo pro header, folder selection, status, buttons
+  const availableHeight = windowHeight - 350; // 350px pro ostatní elementy
+  
+  if (availableHeight > 200) {
+    duplicatesList.style.maxHeight = `${availableHeight}px`;
+  } else {
+    duplicatesList.style.maxHeight = '200px'; // Minimum
+  }
+}
+
 // Event listenery
 scanBtn.addEventListener('click', scanForDuplicates);
 stopBtn.addEventListener('click', stopOperation);
@@ -400,5 +419,11 @@ window.addEventListener('beforeunload', async () => {
   }
 });
 
+// Upravit layout při změně velikosti okna
+window.addEventListener('resize', adjustLayoutForWindowSize);
+
 // Načti složky při otevření popup
 loadFolders();
+
+// Nastav správnou velikost při prvním načtení
+adjustLayoutForWindowSize();
