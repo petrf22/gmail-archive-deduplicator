@@ -651,22 +651,26 @@ async function moveDuplicatesToTrash(duplicateIds) {
     throw new Error('Gmail koš nebyl nalezen');
   }
   
+  let movedCount = 0;
+  
   for (let i = 0; i < duplicateIds.length; i++) {
     if (stopState.requested) {
-      sendProgress(`Zastaveno po ${i} přesunutých emailech`);
-      throw new Error('Operace zastavena uživatelem');
+      sendProgress(`⏹ Přesun zastaven po ${movedCount} emailech`);
+      return { stopped: true, movedCount };
     }
     
     sendProgress(`Přesouvám email ${i + 1}/${duplicateIds.length}`);
     
     try {
       await messenger.messages.move([duplicateIds[i]], trashFolder);
+      movedCount++;
     } catch (error) {
       console.error('Chyba při přesunu emailu:', error);
     }
   }
   
-  sendProgress(`Přesunuto ${duplicateIds.length} emailů do koše`);
+  sendProgress(`Přesunuto ${movedCount} emailů do koše`);
+  return { stopped: false, movedCount };
 }
 
 // Posluchač zpráv z popup okna
@@ -682,7 +686,7 @@ messenger.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'moveDuplicates') {
     stopState.requested = false; // Reset flag při novém přesunu
     moveDuplicatesToTrash(message.duplicateIds)
-      .then(() => sendResponse({ success: true }))
+      .then((result) => sendResponse({ success: true, ...result }))
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true;
   }
