@@ -2,7 +2,7 @@
   "manifest_version": 2,
   "name": "Gmail Archive Deduplicator",
   "description": "Odstraňuje duplicitní emaily mezi lokálním archivem a Gmail účtem",
-  "version": "1.0",
+  "version": "1.4.5",
   "author": "Váš jméno",
   "applications": {
     "gecko": {

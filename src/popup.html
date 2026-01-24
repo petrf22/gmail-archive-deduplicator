@@ -12,13 +12,13 @@
       padding: 15px;
       box-sizing: border-box;
     }
-
+    
     h1 {
       font-size: 18px;
       margin: 0 0 15px 0;
       color: #333;
     }
-
+    
     .status {
       padding: 10px;
       background: #f0f0f0;
@@ -27,22 +27,22 @@
       font-size: 13px;
       color: #666;
     }
-
+    
     .status.loading {
       background: #e3f2fd;
       color: #1976d2;
     }
-
+    
     .status.error {
       background: #ffebee;
       color: #c62828;
     }
-
+    
     .status.success {
       background: #e8f5e9;
       color: #2e7d32;
     }
-
+    
     button {
       padding: 10px 20px;
       background: #1976d2;
@@ -53,24 +53,32 @@
       font-size: 14px;
       margin-right: 10px;
     }
-
+    
     button:hover {
       background: #1565c0;
     }
-
+    
     button:disabled {
       background: #ccc;
       cursor: not-allowed;
     }
-
+    
     button.danger {
       background: #d32f2f;
     }
-
+    
     button.danger:hover {
       background: #c62828;
+    }    
+    button.stop {
+      background: #f57c00;
+    }
+    
+    button.stop:hover {
+      background: #ef6c00;
     }
 
+    
     .duplicates-list {
       max-height: 300px;
       overflow-y: auto;
@@ -78,57 +86,57 @@
       border-radius: 4px;
       margin-top: 15px;
     }
-
+    
     .duplicate-item {
       padding: 10px;
       border-bottom: 1px solid #eee;
       display: flex;
       align-items: center;
     }
-
+    
     .duplicate-item:last-child {
       border-bottom: none;
     }
-
+    
     .duplicate-item:hover {
       background: #f5f5f5;
     }
-
+    
     .duplicate-checkbox {
       margin-right: 10px;
     }
-
+    
     .duplicate-info {
       flex: 1;
     }
-
+    
     .duplicate-subject {
       font-weight: 500;
       color: #333;
       margin-bottom: 3px;
     }
-
+    
     .duplicate-details {
       font-size: 12px;
       color: #666;
     }
-
+    
     .actions {
       margin-top: 15px;
       display: flex;
       gap: 10px;
     }
-
+    
     .counter {
       margin-top: 10px;
       font-size: 14px;
       color: #666;
     }
-
+    
     .select-all {
       margin-bottom: 10px;
     }
-
+    
     .folder-selection {
       margin-bottom: 15px;
       padding: 10px;
@@ -136,15 +144,15 @@
       border-radius: 4px;
       border: 1px solid #ddd;
     }
-
+    
     .folder-group {
       margin-bottom: 12px;
     }
-
+    
     .folder-group:last-child {
       margin-bottom: 0;
     }
-
+    
     .folder-group label {
       display: block;
       font-weight: 500;
@@ -152,7 +160,7 @@
       color: #333;
       margin-bottom: 5px;
     }
-
+    
     .folder-group select {
       width: 100%;
       padding: 8px;
@@ -162,12 +170,12 @@
       background: white;
       cursor: pointer;
     }
-
+    
     .folder-group select:focus {
       outline: none;
       border-color: #1976d2;
     }
-
+    
     .folder-info {
       font-size: 11px;
       color: #999;
@@ -177,7 +185,7 @@
 </head>
 <body>
   <h1>🗂️ Gmail Archive Deduplicator</h1>
-
+  
   <div class="folder-selection">
     <div class="folder-group">
       <label for="archiveFolder">Lokální archivní složka:</label>
@@ -186,7 +194,7 @@
       </select>
       <div class="folder-info">Složka s vašimi archivovanými emaily</div>
     </div>
-
+    
     <div class="folder-group">
       <label for="gmailAllMail">Gmail - Všechny zprávy:</label>
       <select id="gmailAllMail">
@@ -194,7 +202,7 @@
       </select>
       <div class="folder-info">Gmail složka "All Mail" / "Všechny zprávy"</div>
     </div>
-
+    
     <div class="folder-group">
       <label for="gmailTrash">Gmail - Koš:</label>
       <select id="gmailTrash">
@@ -203,27 +211,28 @@
       <div class="folder-info">Gmail složka "Trash" / "Koš"</div>
     </div>
   </div>
-
+  
   <div id="status" class="status">
     Vyberte složky a klikněte na "Vyhledat duplicity"
   </div>
-
+  
   <div class="actions">
     <button id="scanBtn">Vyhledat duplicity</button>
+    <button id="stopBtn" style="display: none;" class="stop">⏹ Zastavit</button>
     <button id="moveBtn" style="display: none;" class="danger">Přesunout vybrané do koše</button>
   </div>
-
+  
   <div id="counter" class="counter" style="display: none;"></div>
-
+  
   <div id="selectAllContainer" style="display: none;" class="select-all">
     <label>
       <input type="checkbox" id="selectAll">
       Vybrat všechny
     </label>
   </div>
-
+  
   <div id="duplicatesList" class="duplicates-list" style="display: none;"></div>
-
+  
   <script src="popup.js"></script>
 </body>
 </html>

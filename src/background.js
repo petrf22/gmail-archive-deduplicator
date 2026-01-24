@@ -21,19 +21,22 @@ function sendProgress(message) {
 // Globální proměnná pro uložení trash složky
 let currentGmailTrash = null;
 
+// Globální flag pro zastavení operace - OBJEKT pro sdílenou referenci mezi vlákny
+const stopState = { requested: false };
+
 /**
  * Najde složku podle cesty
  */
 async function findFolderByPath(path) {
   const accounts = await messenger.accounts.list();
-
+  
   for (const account of accounts) {
     const folder = await searchFolderByPath(account.folders, path);
     if (folder) {
       return folder;
     }
   }
-
+  
   return null;
 }
 
@@ -42,18 +45,18 @@ async function findFolderByPath(path) {
  */
 async function searchFolderByPath(folders, targetPath) {
   if (!folders) return null;
-
+  
   for (const folder of folders) {
     if (folder.path === targetPath) {
       return folder;
     }
-
+    
     if (folder.subFolders && folder.subFolders.length > 0) {
       const found = await searchFolderByPath(folder.subFolders, targetPath);
       if (found) return found;
     }
   }
-
+  
   return null;
 }
 
@@ -89,12 +92,12 @@ async function getMessageHash(message) {
  */
 async function getAllMessagesWithQuery(folder, progressPrefix = '') {
   sendProgress(`${progressPrefix} - Používám rychlé indexované vyhledávání...`);
-
+  
   try {
     let allMessages = [];
     let offset = 0;
     const batchSize = 1000; // Načítáme po 1000
-
+    
     while (true) {
       // Query s limitem a offsetem
       const result = await messenger.messages.query({
@@ -102,26 +105,26 @@ async function getAllMessagesWithQuery(folder, progressPrefix = '') {
         includeSubFolders: true,
         // Thunderbird podporuje limit, ale ne offset - musíme použít jiný přístup
       });
-
+      
       if (!result || !result.messages || result.messages.length === 0) {
         break;
       }
-
+      
       allMessages.push(...result.messages);
       sendProgress(`${progressPrefix} - Načteno ${allMessages.length} emailů...`);
-
+      
       // Pokud jsme dostali méně než očekáváme, jsme na konci
       if (result.messages.length < 100) {
         break;
       }
-
+      
       // PROBLÉM: Query API nemá offset!
       // Fallback na pomalou metodu
       throw new Error('Query API pagination not supported');
     }
-
+    
     return allMessages;
-
+    
   } catch (error) {
     // Fallback na rekurzivní metodu
     sendProgress(`${progressPrefix} - Přepínám na standardní metodu...`);
@@ -135,44 +138,54 @@ async function getAllMessagesWithQuery(folder, progressPrefix = '') {
  */
 async function getAllMessagesFromFolderFast(folder, progressPrefix = '') {
   sendProgress(`${progressPrefix} - Rychlé načítání...`);
-
+  
   let allMessages = [];
   let folderQueue = [{ folder, path: '' }];
-
+  
   while (folderQueue.length > 0) {
+    if (stopState.requested) {
+      sendProgress(`Načítání archivu zastaveno po ${allMessages.length} emailech`);
+      throw new Error('Operace zastavena uživatelem');
+    }
+    
     const current = folderQueue.shift();
     const indent = current.path ? '  ' : '';
-
+    
     try {
       // Načti zprávy z aktuální složky (se stránkováním)
       let page = await messenger.messages.list(current.folder);
       const folderMessages = [...page.messages];
-
+      
       while (page.id) {
+        if (stopState.requested) {
+          sendProgress(`Načítání archivu zastaveno po ${allMessages.length} emailech`);
+          throw new Error('Operace zastavena uživatelem');
+        }
+        
         page = await messenger.messages.continueList(page.id);
         folderMessages.push(...page.messages);
       }
-
+      
       if (folderMessages.length > 0) {
         allMessages.push(...folderMessages);
         sendProgress(`${progressPrefix} - ${indent}${current.folder.name}: ${folderMessages.length} emailů (celkem: ${allMessages.length})`);
       }
-
+      
       // Přidej podsložky do fronty (ne rekurze!)
       if (current.folder.subFolders && current.folder.subFolders.length > 0) {
         for (const subFolder of current.folder.subFolders) {
-          folderQueue.push({
-            folder: subFolder,
-            path: current.path + '/' + subFolder.name
+          folderQueue.push({ 
+            folder: subFolder, 
+            path: current.path + '/' + subFolder.name 
           });
         }
       }
-
+      
     } catch (error) {
       console.log(`Nelze načíst zprávy ze složky ${current.folder.name}:`, error.message);
     }
   }
-
+  
   sendProgress(`${progressPrefix} - Celkem načteno ${allMessages.length} emailů`);
   return allMessages;
 }
@@ -184,26 +197,26 @@ async function getAllMessagesFromFolderFast(folder, progressPrefix = '') {
 async function getAllMessagesFromFolder(folder, progressPrefix = '', depth = 0) {
   let allMessages = [];
   const indent = '  '.repeat(depth);
-
+  
   // Načteme zprávy z aktuální složky
   try {
     sendProgress(`${progressPrefix} - ${indent}${folder.name || 'Archiv'}...`);
-
+    
     let page = await messenger.messages.list(folder);
     allMessages = [...page.messages];
-
+    
     while (page.id) {
       page = await messenger.messages.continueList(page.id);
       allMessages.push(...page.messages);
     }
-
+    
     if (allMessages.length > 0) {
       sendProgress(`${progressPrefix} - ${indent}${folder.name || 'Archiv'}: ${allMessages.length} emailů`);
     }
   } catch (error) {
     console.log(`Nelze načíst zprávy ze složky ${folder.name}:`, error.message);
   }
-
+  
   // Rekurzivně projdeme všechny podsložky
   if (folder.subFolders && folder.subFolders.length > 0) {
     for (const subFolder of folder.subFolders) {
@@ -211,7 +224,7 @@ async function getAllMessagesFromFolder(folder, progressPrefix = '', depth = 0) 
       allMessages.push(...subMessages);
     }
   }
-
+  
   return allMessages;
 }
 
@@ -220,7 +233,7 @@ async function getAllMessagesFromFolder(folder, progressPrefix = '', depth = 0) 
  */
 async function findLocalArchiveFolder() {
   const accounts = await messenger.accounts.list();
-
+  
   for (const account of accounts) {
     // Hledáme lokální složky (typ "none")
     if (account.type === 'none') {
@@ -230,7 +243,7 @@ async function findLocalArchiveFolder() {
       }
     }
   }
-
+  
   return null;
 }
 
@@ -239,7 +252,7 @@ async function findLocalArchiveFolder() {
  */
 async function findGmailAllMailFolder() {
   const accounts = await messenger.accounts.list();
-
+  
   for (const account of accounts) {
     // Hledáme IMAP účty (Gmail)
     if (account.type === 'imap') {
@@ -249,7 +262,7 @@ async function findGmailAllMailFolder() {
       }
     }
   }
-
+  
   return null;
 }
 
@@ -258,7 +271,7 @@ async function findGmailAllMailFolder() {
  */
 async function findGmailTrashFolder() {
   const accounts = await messenger.accounts.list();
-
+  
   for (const account of accounts) {
     if (account.type === 'imap') {
       const folders = await findFolderByName(account.folders, ['[Gmail]/Trash', 'Trash', '[Gmail]/Koš', 'Koš']);
@@ -267,7 +280,7 @@ async function findGmailTrashFolder() {
       }
     }
   }
-
+  
   return null;
 }
 
@@ -276,18 +289,18 @@ async function findGmailTrashFolder() {
  */
 async function findFolderByName(folders, names) {
   const results = [];
-
+  
   for (const folder of folders) {
     if (names.some(name => folder.path.includes(name) || folder.name === name)) {
       results.push(folder);
     }
-
+    
     if (folder.subFolders && folder.subFolders.length > 0) {
       const subResults = await findFolderByName(folder.subFolders, names);
       results.push(...subResults);
     }
   }
-
+  
   return results;
 }
 
@@ -297,7 +310,7 @@ async function findFolderByName(folders, names) {
  */
 async function findDuplicates(folderPaths = null) {
   let archiveFolder, gmailAllMail;
-
+  
   if (folderPaths) {
     // Použij složky vybrané uživatelem
     sendProgress('Načítám vybrané složky...');
@@ -307,7 +320,7 @@ async function findDuplicates(folderPaths = null) {
       findFolderByPath(folderPaths.gmailAllMail),
       findFolderByPath(folderPaths.gmailTrash)
     ]);
-
+    
     if (!archiveFolder) {
       throw new Error(`Archivní složka nenalezena: ${folderPaths.archiveFolder}`);
     }
@@ -325,7 +338,7 @@ async function findDuplicates(folderPaths = null) {
       findGmailAllMailFolder(),
       findGmailTrashFolder()
     ]);
-
+    
     if (!archiveFolder) {
       throw new Error('Lokální archivní složka nebyla nalezena');
     }
@@ -333,16 +346,34 @@ async function findDuplicates(folderPaths = null) {
       throw new Error('Gmail složka "All Mail" nebyla nalezena');
     }
   }
+  
 
   // Pomocná funkce pro načtení Gmail zpráv
   async function loadGmailMessages(folder) {
     let page = await messenger.messages.list(folder);
     const messages = [...page.messages];
+    
+    sendProgress(`Načítám Gmail: ${messages.length} emailů...`);
 
     while (page.id) {
+      // Kontrola PŘED načtením další stránky
+      if (stopState.requested) {
+        sendProgress(`⏹ Načítání Gmail zastaveno po ${messages.length} emailech`);
+        throw new Error('Operace zastavena uživatelem');
+      }
+      
       page = await messenger.messages.continueList(page.id);
+      
+      // Kontrola HNED PO načtení (pro rychlejší reakci)
+      if (stopState.requested) {
+        sendProgress(`⏹ Načítání Gmail zastaveno po ${messages.length} emailech (před přidáním)`);
+        throw new Error('Operace zastavena uživatelem');
+      }
+      
       messages.push(...page.messages);
-      if (messages.length % 1000 === 0) {
+      
+      // Progress každých 500 emailů (častěji)
+      if (messages.length % 500 === 0) {
         sendProgress(`Načítám Gmail: ${messages.length} emailů...`);
       }
     }
@@ -368,6 +399,10 @@ async function findDuplicates(folderPaths = null) {
   const BATCH_SIZE = 50;
 
   for (let batchStart = 0; batchStart < gmailMessages.length; batchStart += BATCH_SIZE) {
+    if (stopState.requested) {
+      throw new Error('Operace zastavena uživatelem');
+    }
+    
     const batchEnd = Math.min(batchStart + BATCH_SIZE, gmailMessages.length);
     const batch = gmailMessages.slice(batchStart, batchEnd);
 
@@ -409,6 +444,10 @@ async function findDuplicates(folderPaths = null) {
   let archiveErrors = 0;
 
   for (let batchStart = 0; batchStart < archiveMessages.length; batchStart += BATCH_SIZE) {
+    if (stopState.requested) {
+      throw new Error('Operace zastavena uživatelem');
+    }
+    
     const batchEnd = Math.min(batchStart + BATCH_SIZE, archiveMessages.length);
     const batch = archiveMessages.slice(batchStart, batchEnd);
 
@@ -463,9 +502,9 @@ async function findDuplicates(folderPaths = null) {
   if (archiveErrors > 0) {
     sendProgress(`Varování: ${archiveErrors} archivních emailů nelze přečíst (přeskočeny)`);
   }
-
+  
   sendProgress(`Analýza dokončena. Nalezeno ${duplicates.length} duplicit z ${archiveMessages.length} zkontrolovaných emailů`);
-
+  
   return {
     duplicates,
     archiveFolder,
@@ -479,35 +518,35 @@ async function findDuplicates(folderPaths = null) {
 async function findDuplicatesInFolder(archiveFolder, gmailFolder, duplicates, processedCount, gmailErrors, depth = 0) {
   const indent = '  '.repeat(depth);
   sendProgress(`Procházím ${indent}${archiveFolder.name || 'Archiv'}...`);
-
+  
   // Načteme zprávy z aktuální složky
   try {
     let page = await messenger.messages.list(archiveFolder);
-
+    
     do {
       // Zpracujeme každou zprávu na této stránce
       for (const archiveMsg of page.messages) {
         processedCount++;
-
+        
         if (processedCount % 10 === 0) {
           sendProgress(`Zkontrolováno: ${processedCount} emailů, nalezeno: ${duplicates.length} duplicit`);
         }
-
+        
         // Získáme Message-ID a hash archivního emailu
         const archiveMessageId = await getMessageId(archiveMsg.id);
         const archiveHash = await getMessageHash(archiveMsg);
-
+        
         if (!archiveMessageId && !archiveHash) {
           continue; // Přeskočíme nečitelné zprávy
         }
-
+        
         // Hledáme tento email v Gmailu
         const gmailMatch = await findMessageInFolder(
-          gmailFolder,
-          archiveMessageId,
+          gmailFolder, 
+          archiveMessageId, 
           archiveHash
         );
-
+        
         if (gmailMatch) {
           // Našli jsme duplicitu!
           duplicates.push({
@@ -520,7 +559,7 @@ async function findDuplicatesInFolder(archiveFolder, gmailFolder, duplicates, pr
           });
         }
       }
-
+      
       // Pokračujeme na další stránku
       if (page.id) {
         page = await messenger.messages.continueList(page.id);
@@ -528,11 +567,11 @@ async function findDuplicatesInFolder(archiveFolder, gmailFolder, duplicates, pr
         break;
       }
     } while (page.id);
-
+    
   } catch (error) {
     console.log(`Chyba při procházení složky ${archiveFolder.name}:`, error.message);
   }
-
+  
   // Rekurzivně projdeme podsložky
   if (archiveFolder.subFolders && archiveFolder.subFolders.length > 0) {
     for (const subFolder of archiveFolder.subFolders) {
@@ -550,14 +589,14 @@ async function findMessageInFolder(folder, messageId, hash) {
     if (messageId) {
       // Zkusíme najít podle předmětu a odesílatele (Query API podporuje)
       const [subject, timestamp, author] = hash ? hash.split('|') : [null, null, null];
-
+      
       if (subject && author) {
         const result = await messenger.messages.query({
           folder: folder,
           author: author,
           subject: subject
         });
-
+        
         // Projdeme výsledky a hledáme shodu v Message-ID
         if (result.messages && result.messages.length > 0) {
           for (const msg of result.messages) {
@@ -569,18 +608,18 @@ async function findMessageInFolder(folder, messageId, hash) {
         }
       }
     }
-
+    
     // Fallback: hledání podle hash (předmět + datum + autor)
     if (hash) {
       const [subject, timestamp, author] = hash.split('|');
-
+      
       if (subject && author) {
         const result = await messenger.messages.query({
           folder: folder,
           subject: subject,
           author: author
         });
-
+        
         // Ověříme datum (může být více emailů se stejným předmětem)
         if (result.messages && result.messages.length > 0) {
           for (const msg of result.messages) {
@@ -594,7 +633,7 @@ async function findMessageInFolder(folder, messageId, hash) {
         }
       }
     }
-
+    
     return null;
   } catch (error) {
     // Query API může selhat, to je OK - není to duplicita
@@ -607,37 +646,52 @@ async function findMessageInFolder(folder, messageId, hash) {
  */
 async function moveDuplicatesToTrash(duplicateIds) {
   const trashFolder = currentGmailTrash || await findGmailTrashFolder();
-
+  
   if (!trashFolder) {
     throw new Error('Gmail koš nebyl nalezen');
   }
-
+  
   for (let i = 0; i < duplicateIds.length; i++) {
+    if (stopState.requested) {
+      sendProgress(`Zastaveno po ${i} přesunutých emailech`);
+      throw new Error('Operace zastavena uživatelem');
+    }
+    
     sendProgress(`Přesouvám email ${i + 1}/${duplicateIds.length}`);
-
+    
     try {
       await messenger.messages.move([duplicateIds[i]], trashFolder);
     } catch (error) {
       console.error('Chyba při přesunu emailu:', error);
     }
   }
-
+  
   sendProgress(`Přesunuto ${duplicateIds.length} emailů do koše`);
 }
 
 // Posluchač zpráv z popup okna
 messenger.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'findDuplicates') {
+    stopState.requested = false; // Reset flag při nové analýze
     findDuplicates(message.folderPaths)
       .then(result => sendResponse({ success: true, data: result }))
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true; // Asynchronní odpověď
   }
-
+  
   if (message.action === 'moveDuplicates') {
+    stopState.requested = false; // Reset flag při novém přesunu
     moveDuplicatesToTrash(message.duplicateIds)
       .then(() => sendResponse({ success: true }))
       .catch(error => sendResponse({ success: false, error: error.message }));
+    return true;
+  }
+  
+  if (message.action === 'stop') {
+    stopState.requested = true;
+    console.log('🛑 STOP požadavek přijat! stopState.requested = true');
+    sendProgress('🛑 STOP signál přijat, zastavuji při nejbližší příležitosti...');
+    sendResponse({ success: true });
     return true;
   }
 });
