@@ -3,7 +3,7 @@
   "name": "Gmail Archive Deduplicator",
   "description": "Odstraňuje duplicitní emaily mezi lokálním archivem a Gmail účtem",
   "version": "1.5.1",
-  "author": "Váš jméno",
+  "author": "claude.ai",
   "applications": {
     "gecko": {
       "id": "gmail-deduplicator@example.com",
