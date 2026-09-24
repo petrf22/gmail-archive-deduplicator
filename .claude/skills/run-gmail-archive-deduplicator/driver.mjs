@@ -13,7 +13,7 @@
 //   --move-delay <ms>     zpoždění každého messages.move
 //   --fail-move <id,id>   messages.move s těmito id selže
 //   --out <adresář>       kam ukládat screenshoty (výchozí /tmp/gad-shots)
-//   --size <šxv>          velikost okna popupu (výchozí 650x500, jako windows.create)
+//   --size <šxv>          velikost okna popupu (výchozí 650x750, jako windows.create)
 //   --stop                ui: během hledání klikne na Zastavit
 //   --eval '<js>'         ui: po načtení vyhodnotí JS v popupu, vypíše výsledek, udělá screenshot a skončí
 //   --keep-profile        tb: nemazat dočasný profil (cesta se vypíše)
@@ -96,9 +96,8 @@ const REFS = {
   gmailAllMail: { accountId: 'account2', path: '/[Gmail]/All Mail' },
 };
 const TRASH = { accountId: 'account2', path: '/[Gmail]/Trash' };
-// 103 by se párovalo přes hash, ale TB dává zprávám bez Message-ID syntetické "md5:…" ID
-// (fake-messenger to napodobuje), takže hash větev findDuplicatesInArchive se nepoužije
-const EXPECTED_DUPLICATES = [101, 102, 106];
+// 103 se páruje přes hash: archivní zpráva nemá Message-ID (TB i fake-messenger jí dají syntetické "md5:…")
+const EXPECTED_DUPLICATES = [101, 102, 103, 106];
 const sortNum = (list) => [...list].sort((a, b) => a - b);
 const same = (a, b) => JSON.stringify(sortNum(a)) === JSON.stringify(sortNum(b));
 
@@ -144,7 +143,7 @@ const scenarios = {
     return {
       response: r,
       extra: { gmailTrash: trash },
-      ok: r.success && !r.stopped && same(r.movedIds, [101, 106]) && same(trash, [101, 106]),
+      ok: r.success && !r.stopped && same(r.movedIds, [101, 103, 106]) && same(trash, [101, 103, 106]),
     };
   },
   // Stop během načítání -> chyba 'Operace zastavena uživatelem'
@@ -332,7 +331,7 @@ async function runUi() {
   requireDist();
   const outDir = resolve(flags.out || '/tmp/gad-shots');
   mkdirSync(outDir, { recursive: true });
-  const [width, height] = String(flags.size || '650x500').split('x').map(Number);
+  const [width, height] = String(flags.size || '650x750').split('x').map(Number);
   const server = await startServer();
   const url = `http://127.0.0.1:${server.address().port}/popup.html`;
   console.log(`popup: ${url}`);
@@ -619,7 +618,7 @@ async function runTb() {
     await screenshot('Thunderbird', 'tb-00-main.png');
 
     // Popup otevřeme stejně jako položka v menu Nástroje
-    await rdp.evaluate(bg, `await messenger.windows.create({ url: 'popup.html', type: 'popup', width: 650, height: 500 });`);
+    await rdp.evaluate(bg, `await messenger.windows.create({ url: 'popup.html', type: 'popup', width: 650, height: 750 });`);
     const POPUP = `const view = messenger.extension.getViews().find(v => v.location.pathname.endsWith('/popup.html'));
       if (!view) throw new Error('popup view nenalezen');
       const $ = (id) => view.document.getElementById(id);`;

@@ -1,5 +1,5 @@
 {
-  "_comment": "Testovací data pro fake-messenger.js a driver.mjs tb. Očekávané duplicity (Gmail id): 101, 102 (Message-ID), 106 (Message-ID v podsložce). Archivní 3 nemá Message-ID a Gmail 103 má stejný předmět/datum/autora - Thunderbird (a fake) ale archivní 3 dá syntetické md5:… ID, takže se přes hash NESPÁRUJE. 104 má stejný předmět/datum/autora jako archivní 4, ale jiné Message-ID -> NENÍ duplicita. Archivní 7 má stejné Message-ID jako 1 -> Gmail 101 se nesmí spárovat dvakrát. gmailFiller přidá do All Mail další zprávy (stránkování).",
+  "_comment": "Testovací data pro fake-messenger.js a driver.mjs tb. Očekávané duplicity (Gmail id): 101, 102 (Message-ID), 103 (hash: archivní 3 nemá Message-ID, Thunderbird i fake jí dají syntetické md5:… ID, které doplněk ignoruje), 106 (Message-ID v podsložce). 104 má stejný předmět/datum/autora jako archivní 4, ale jiné Message-ID -> NENÍ duplicita. Archivní 7 má stejné Message-ID jako 1 -> Gmail 101 se nesmí spárovat dvakrát. gmailFiller přidá do All Mail další zprávy (stránkování).",
   "pageSize": 100,
   "gmailFiller": 250,
   "accounts": [

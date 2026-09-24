@@ -43,14 +43,14 @@ Screenshoty se ukládají do `/tmp/gad-shots/` (jiný adresář nastavíš přes
 |---|---|
 | `bg [scénář\|all]` | scénáře `detect`, `refs`, `refs-trash`, `move`, `stop-scan`, `stop-move`. Vypíše odpověď a výsledek OK nebo FAIL. |
 | `send '<json>'` | pošle backgroundu libovolný `BackgroundRequest` a vypíše progress zprávy, odpověď a volání `messages.move` |
-| `ui` | projde celý flow v popupu. Varianty: `--stop --page-delay 300` (klikne na Zastavit), `--fail-move 102` (selhání přesunu), `--size 650x800`, `--eval '<js>'` (vyhodnotí JS po načtení, udělá screenshot a skončí) |
+| `ui` | projde celý flow v popupu. Varianty: `--stop --page-delay 300` (klikne na Zastavit), `--fail-move 102` (selhání přesunu), `--size 650x500`, `--eval '<js>'` (vyhodnotí JS po načtení, udělá screenshot a skončí) |
 | `tb` | stejný flow ve skutečném TB 153 a navíc porovnání výsledků s fake API. Varianty: `--keep-profile` (profil se nesmaže, cesta se vypíše), `--verbose` (stderr TB) |
 
 Společné volby: `--fixture <json>`, `--page-delay <ms>`, `--move-delay <ms>`, `--fail-move <id,id>`.
 
 Testovací data jsou ve `fixture.json`. Lokální účet (`none`) obsahuje `/Archives` s podsložkou `/Archives/2024`, `/Trash` a `/Inbox`.
 Gmail účet (`imap`) obsahuje `/[Gmail]/All Mail` (6 zpráv a 250 výplňových kvůli stránkování po 100) a `/[Gmail]/Trash`.
-Očekávané duplicity jsou Gmail id 101, 102 a 106. Komentář `_comment` ve fixture vysvětluje, proč ostatní zprávy duplicitami nejsou.
+Očekávané duplicity jsou Gmail id 101, 102, 103 (přes hash) a 106. Komentář `_comment` ve fixture vysvětluje, proč ostatní zprávy duplicitami nejsou.
 
 **Kterou vrstvu použít:** Změna párování, stopu nebo přesunu v `background.ts` → `bg all` (případně přidej scénář do `scenarios` v driveru).
 Změna v `popup.ts` nebo `popup.html` → `ui` a prohlédnout screenshoty. Před odevzdáním větší změny nebo při podezření,
@@ -85,9 +85,8 @@ node .claude/skills/run-gmail-archive-deduplicator/driver.mjs tb       # samé O
 ## Gotchas
 
 - **Thunderbird zprávě bez hlavičky `Message-ID` vygeneruje `headerMessageId: "md5:…"`** (ověřeno na TB 153).
-  Prázdné ID tak nikdy nepřijde a hash větev ve `findDuplicatesInArchive`
-  (`!messageId || !getMessageId(candidate)`) se se skutečným TB nikdy nepoužije. Fake API to napodobuje
-  (`syntheticMessageId`), jinak by `bg` hlásil o duplicitu víc než skutečnost (4 místo 3).
+  `getMessageId` v `background.ts` proto `md5:` ID bere jako chybějící, jinak by se hash větev nikdy nepoužila.
+  Fake API to napodobuje (`syntheticMessageId`). Když změníš `getMessageId`, ověř to přes `tb`, protože jedině tam jsou skutečná ID.
 - **Názvy speciálních složek jsou lokalizované.** `/Archives` má ve skutečném TB `name: "Archiv"`. Složky proto hledej podle `path`, ne podle `name`.
 - **mbox bez `.msf` se nezaindexuje, dokud se složka neotevře v UI.** `messages.list` do té doby vrací 0 zpráv.
   `tb` proto v parent procesu volá `folder.updateFolder(null)` a čeká, až `getTotalMessages` sedí.
@@ -98,9 +97,7 @@ node .claude/skills/run-gmail-archive-deduplicator/driver.mjs tb       # samé O
 - **RDP klient z `web-ext` se tu nedá použít:** událost `evaluationResult` nezná a hlásí ji jako chybu, navíc balíček exportuje jen `.`. Proto má driver vlastní klienta o 40 řádcích.
 - **Globál `MailServices` už v konzoli parent procesu existuje.** `ChromeUtils.importESModule(...MailServices...)` tam spadne na `redeclaration of non-configurable global property`.
 - **`confirm()` v popupu je třeba přepsat** (`ui` v prohlížeči, `tb` přes `view.confirm`). Skutečný modální dialog by zablokoval CDP i RDP.
-- **Popup v okně 650×500** (velikost z `windows.create`) má seznam duplicit skoro celý pod okrajem okna, a to v Chrome i ve skutečném TB (screenshot `02-duplicates.png`). Pro kontrolu seznamu použij `ui --size 650x800`.
-- **Stop během hledání:** výsledná stavová zpráva bývá `⏹ Načítání Gmail zastaveno…` s třídou `loading`, ne `Chyba: Operace zastavena…`.
-  Druhý paralelní loader pošle progress až po odpovědi a přepíše ji. Tak se chová samotný doplněk, ne harness.
+- **Výška seznamu duplicit se počítá z jeho pozice** (`adjustLayoutForWindowSize`), a to až po zobrazení seznamu. Skrytý prvek nemá pozici. Okno z menu Nástroje má 650×750 a `ui` i `tb` používají stejnou velikost.
 - **Mezi Node a prohlížečem je vždy `structuredClone`**, stejně jako ve skutečném `runtime.sendMessage`. `date` tedy zůstává `Date`.
 - V `bg move` se do konzole vypíše `console.error` se stack trace („Chyba při přesunu dávky…“). To je očekávané, scénář selhání přesunu simuluje schválně.
 

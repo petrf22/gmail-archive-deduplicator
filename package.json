@@ -1,6 +1,6 @@
 {
   "name": "gmail-archive-deduplicator",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "private": true,
   "description": "Doplněk pro Thunderbird, který odstraňuje duplicitní emaily mezi lokálním archivem a Gmail účtem",
   "license": "MIT",

@@ -84,9 +84,15 @@ function searchFolderByPath(folders: MailFolder[] | undefined, targetPath: strin
 /**
  * Message-ID emailu - nejspolehlivější identifikátor pro porovnání duplicit
  * headerMessageId je součástí MessageHeader, není potřeba stahovat celou zprávu
+ * Zprávám bez hlavičky Message-ID Thunderbird vygeneruje "md5:..." - to bereme jako chybějící,
+ * jinak by se takové zprávy nikdy nespárovaly přes hash
  */
 function getMessageId(message: MessageHeader): string | null {
-  return message.headerMessageId || null;
+  const messageId = message.headerMessageId;
+  if (!messageId || messageId.startsWith('md5:')) {
+    return null;
+  }
+  return messageId;
 }
 
 /**
@@ -223,7 +229,7 @@ function findLocalArchiveFolder(): Promise<MailFolder | null> {
  * Najde Gmail složku "All Mail"
  */
 function findGmailAllMailFolder(): Promise<MailFolder | null> {
-  return findFolderInAccounts('imap', ['[Gmail]/All Mail', 'All Mail', '[Gmail]/Všechny zprávy']);
+  return findFolderInAccounts('imap', ['[Gmail]/All Mail', 'All Mail', '[Gmail]/Všechny zprávy', '[Gmail]/Všechna pošta']);
 }
 
 /**
@@ -500,7 +506,7 @@ messenger.menus.onClicked.addListener(async (info) => {
       url: 'popup.html',
       type: 'popup',
       width: 650,
-      height: 500
+      height: 750
     });
   }
 });

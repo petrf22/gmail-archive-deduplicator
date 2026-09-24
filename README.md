@@ -4,12 +4,12 @@ Tento doplněk automaticky detekuje a odstraňuje duplicitní emaily mezi lokál
 
 ## Funkce
 
-- ✅ Automatická detekce lokální archivní složky
-- ✅ Automatická detekce Gmail složky "All Mail"
-- ✅ Porovnání emailů pomocí Message-ID a dalších atributů
+- ✅ Výběr lokálního archivu, Gmail „All Mail“ a Gmail koše (pravděpodobné složky se předvyberou podle jména)
+- ✅ Porovnání emailů pomocí Message-ID, u zpráv bez Message-ID podle předmětu, data a odesílatele
 - ✅ Přehledný seznam duplicit s možností výběru
-- ✅ Bezpečný přesun do Gmail koše
-- ✅ Česká lokalizace
+- ✅ Bezpečný přesun do vybraného Gmail koše
+- ✅ Tlačítko Zastavit pro hledání i přesun
+- ✅ České rozhraní
 
 ## Požadavky
 
@@ -37,9 +37,9 @@ Tento doplněk automaticky detekuje a odstraňuje duplicitní emaily mezi lokál
 
 ## Použití
 
-1. Klikněte na ikonu doplňku v panelu nástrojů Thunderbirdu
-2. Klikněte na tlačítko **"Vyhledat duplicity"**
-3. Počkejte na dokončení analýzy (může trvat několik minut u velkých mailboxů)
+1. Klikněte na ikonu doplňku v panelu nástrojů Thunderbirdu, nebo ho otevřete v samostatném okně z menu **Nástroje → Gmail Archive Deduplicator**
+2. Zkontrolujte vybrané složky (lokální archiv, Gmail „All Mail“ a Gmail koš) a klikněte na tlačítko **"Vyhledat duplicity"**
+3. Počkejte na dokončení analýzy (může trvat několik minut u velkých mailboxů), tlačítkem **Zastavit** ji můžete přerušit
 4. Zkontrolujte seznam nalezených duplicit
 5. Odškrtněte emaily, které nechcete smazat (volitelné)
 6. Klikněte na **"Přesunout vybrané do koše"**
@@ -49,42 +49,40 @@ Tento doplněk automaticky detekuje a odstraňuje duplicitní emaily mezi lokál
 
 Doplněk provádí následující kroky:
 
-1. **Detekce složek**: Automaticky najde lokální archivní složku a Gmail složku "All Mail"
-2. **Načtení emailů**: Načte všechny emaily z obou složek
+1. **Výběr složek**: Použije složky vybrané v okně doplňku (pravděpodobné se předvyberou podle jména)
+2. **Načtení emailů**: Načte emaily z archivu (včetně podsložek) a z Gmail „All Mail“
 3. **Porovnání**: Pro každý email v lokálním archivu zkontroluje, zda existuje v Gmail
    - Primárně používá Message-ID (unikátní identifikátor emailu)
-   - Sekundárně používá kombinaci předmětu, data a odesílatele
+   - Kombinaci předmětu, data a odesílatele použije jen tehdy, když Message-ID chybí aspoň na jedné straně. Dvě zprávy s různým Message-ID se nikdy nespárují
 4. **Zobrazení duplicit**: Vypíše všechny nalezené duplicity
-5. **Přesun**: Po potvrzení přesune vybrané emaily do Gmail koše
+5. **Přesun**: Po potvrzení přesune vybrané emaily do vybraného Gmail koše
 
 ## Co doplněk NEDĚLÁ
 
-- **Nemažé lokální archiv**: Duplicitní emaily zůstávají v lokálním archivu
+- **Nemaže lokální archiv**: Duplicitní emaily zůstávají v lokálním archivu
 - **Pouze Gmail**: Přesouvá duplicity pouze v Gmail účtu (do koše)
 - **Nevyhledává automaticky**: Musíte spustit analýzu manuálně
 
 ## Poznámky
 
 ### Bezpečnost
-- Doplněk pouze přesouvá emaily do koše, ne trvale nemazá
+- Doplněk pouze přesouvá emaily do koše, trvale nic nemaže
 - Z Gmail koše můžete emaily obnovit do 30 dnů
 - Doporučujeme před použitím vytvořit zálohu
 
 ### Výkon
 - Analýza může trvat několik minut u velkých mailboxů
-- Doporučujeme zavřít ostatní aplikace během analýzy
-- První spuštění bude pomalejší kvůli indexování
 
-### Detekce složek
-Doplněk automaticky hledá tyto názvy složek:
+### Předvýběr složek
+Okno doplňku nabízí lokální složky (účty typu „Místní složky“) a složky IMAP účtů. Předvybere tyto názvy:
 - **Lokální archiv**: "Archives", "Archiv", "Archive"
-- **Gmail All Mail**: "[Gmail]/All Mail", "All Mail", "[Gmail]/Všechna pošta"
+- **Gmail All Mail**: "[Gmail]/All Mail", "All Mail", "[Gmail]/Všechny zprávy", "[Gmail]/Všechna pošta"
 - **Gmail Koš**: "[Gmail]/Trash", "Trash", "[Gmail]/Koš", "Koš"
 
 ## Řešení problémů
 
-### Doplněk nenalezne složky
-- Zkontrolujte, že máte nakonfigurovaný Gmail účet přes IMAP
+### Doplněk nenabízí Gmail složky
+- Zkontrolujte, že máte nakonfigurovaný Gmail účet přes IMAP (jiné typy účtů se v Gmail výběru nezobrazují)
 - Ověřte, že složka "All Mail" je viditelná v Thunderbirdu
 - Zkuste restartovat Thunderbird
 
@@ -116,7 +114,7 @@ gmail-archive-deduplicator/
 
 ## Sestavení (TypeScript)
 
-Vyžaduje Node.js 18+.
+Vyžaduje Node.js 20+.
 
 ```bash
 npm install
@@ -134,24 +132,27 @@ Pro úpravu kódu:
 3. Načtěte doplněk znovu v Debug režimu z `dist/manifest.json`
 4. Otevřete konzoli pro ladění: Tools → Developer Tools → Browser Console
 
+Automatické ověření bez skutečného Gmailu (falešné API, headless Chrome a headless Thunderbird s dočasným profilem) popisuje
+[.claude/skills/run-gmail-archive-deduplicator/SKILL.md](.claude/skills/run-gmail-archive-deduplicator/SKILL.md).
+
 ## Podpora
 
-Pro nahlášení chyb nebo návrhy na vylepšení:
-- Email: [váš email]
-- GitHub Issues: [odkaz na repozitář]
+Chyby a návrhy na vylepšení hlaste přes [GitHub Issues](https://github.com/petrf22/gmail-archive-deduplicator/issues).
 
 ## Licence
 
-[Vyberte licenci, např. MIT]
+MIT, viz soubor [LICENSE](LICENSE).
 
 ## Autor
 
-[Vaše jméno]
+Petr Franta
 
 ## Změny
 
-### Verze 1.0
-- Základní funkcionalita
-- Detekce duplicit mezi lokálním archivem a Gmail
-- Přesun do Gmail koše
-- České rozhraní
+### Verze 1.8.0
+- Zprávy bez Message-ID se znovu párují podle předmětu, data a odesílatele (Thunderbird jim generuje ID `md5:…`, které se dříve bralo jako skutečné)
+- Po zastavení hledání zůstane zobrazená výsledná hláška, nepřepíše ji pozdější zpráva o průběhu
+- Seznam duplicit vyplní zbytek okna, okno z menu Nástroje je vyšší (650×750)
+- Automatická detekce Gmail „All Mail“ zná i název „[Gmail]/Všechna pošta“
+
+Starší změny najdete v historii gitu.

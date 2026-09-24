@@ -22,6 +22,10 @@ interface FolderInfo {
 
 let duplicatesData: Duplicate[] = [];
 
+// Běží hledání nebo přesun? Progress zprávy, které dorazí až po skončení operace
+// (např. od druhého paralelního načítání po Stop), by jinak přepsaly výsledný stav
+let operationRunning = false;
+
 function getElement<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
   if (!element) {
@@ -57,7 +61,7 @@ function send<R extends BackgroundRequest>(request: R): Promise<ResponseFor[R['a
 
 // Naslouchání progress zprávám z background.ts
 messenger.runtime.onMessage.addListener((message: ProgressMessage | BackgroundRequest) => {
-  if (message.action === 'progress') {
+  if (message.action === 'progress' && operationRunning) {
     updateStatus(message.message, 'loading');
   }
 });
@@ -273,6 +277,7 @@ function displayDuplicates(duplicates: Duplicate[]): void {
   moveBtn.style.display = 'inline-block';
   updateCounter();
   updateStatus(`Nalezeno ${duplicates.length} duplicitních emailů`, 'success');
+  adjustLayoutForWindowSize();
 }
 
 /**
@@ -320,6 +325,7 @@ async function scanForDuplicates(): Promise<void> {
     selectAllContainer.style.display = 'none';
     counterDiv.style.display = 'none';
     updateStatus('Spouštím analýzu...', 'loading');
+    operationRunning = true;
 
     const response = await send({ action: 'findDuplicates', folderRefs });
 
@@ -332,6 +338,7 @@ async function scanForDuplicates(): Promise<void> {
   } catch (error) {
     updateStatus(`Chyba: ${errorMessage(error)}`, 'error');
   } finally {
+    operationRunning = false;
     scanBtn.disabled = false;
     stopBtn.style.display = 'none';
   }
@@ -365,6 +372,7 @@ async function moveDuplicates(): Promise<void> {
     stopBtn.disabled = false;  // Reset pro nový přesun
     stopBtn.style.display = 'inline-block';  // Zobrazíme Stop
     updateStatus(`Přesouvám ${gmailIds.length} emailů...`, 'loading');
+    operationRunning = true;
 
     const response = await send({
       action: 'moveDuplicates',
@@ -397,6 +405,7 @@ async function moveDuplicates(): Promise<void> {
   } catch (error) {
     updateStatus(`Chyba: ${errorMessage(error)}`, 'error');
   } finally {
+    operationRunning = false;
     stopBtn.style.display = 'none';
     scanBtn.disabled = false;
     moveBtn.disabled = false;
@@ -440,10 +449,13 @@ async function stopOperation(): Promise<void> {
  * Upraví výšku seznamu duplicit podle velikosti okna
  */
 function adjustLayoutForWindowSize(): void {
-  // Odečteme místo pro header, folder selection, status, buttons (350px)
-  const availableHeight = window.innerHeight - 350;
-  // Minimum 200px
-  duplicatesList.style.maxHeight = `${Math.max(availableHeight, 200)}px`;
+  if (duplicatesList.style.display === 'none') {
+    return;  // Skrytý seznam nemá pozici, spočítá se po zobrazení
+  }
+  // Seznam vyplní zbytek okna pod sebou (15px = spodní padding body)
+  const availableHeight = window.innerHeight - duplicatesList.getBoundingClientRect().top - 15;
+  // Minimum 150px, v příliš malém okně se pak posouvá celá stránka
+  duplicatesList.style.maxHeight = `${Math.max(availableHeight, 150)}px`;
 }
 
 /**
