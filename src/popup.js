@@ -1,7 +1,6 @@
 // popup.js - Logika pro popup okno
 
 let duplicatesData = [];
-const stopState = { requested: false };
 
 const scanBtn = document.getElementById('scanBtn');
 const stopBtn = document.getElementById('stopBtn');
@@ -61,11 +60,11 @@ async function collectFolders(folders, account, localFolders, gmailFolders, path
     const folderPath = path ? `${path}/${folder.name}` : folder.name;
     const folderInfo = {
       id: folder.id,
+      accountId: account.id,
       path: folder.path || folderPath,
       name: folder.name,
       accountName: account.name,
-      accountType: account.type,
-      folder: folder
+      accountType: account.type
     };
     
     // Rozděl podle typu účtu
@@ -97,7 +96,7 @@ function populateFolderSelect(selectElement, folders, placeholder) {
   // Přidej složky
   folders.forEach(folderInfo => {
     const option = document.createElement('option');
-    option.value = folderInfo.path;
+    option.value = `${folderInfo.accountId}|${folderInfo.path}`;
     option.textContent = `${folderInfo.accountName} → ${folderInfo.path}`;
     option.dataset.folderId = folderInfo.id;
     option.dataset.folderData = JSON.stringify(folderInfo);
@@ -139,11 +138,19 @@ function autoSelectFolder(selectElement, folders) {
   if (bestMatch) {
     // Najdi index v selectu
     const options = Array.from(selectElement.options);
-    const index = options.findIndex(opt => opt.value === bestMatch.path);
+    const index = options.findIndex(opt => opt.value === `${bestMatch.accountId}|${bestMatch.path}`);
     if (index !== -1) {
       selectElement.selectedIndex = index;
     }
   }
+}
+
+/**
+ * Vrátí vybranou složku jako {accountId, path} - samotná cesta není napříč účty unikátní
+ */
+function getSelectedFolderRef(selectElement) {
+  const folderInfo = JSON.parse(selectElement.options[selectElement.selectedIndex].dataset.folderData);
+  return { accountId: folderInfo.accountId, path: folderInfo.path };
 }
 
 /**
@@ -255,11 +262,11 @@ async function scanForDuplicates() {
     }
     
     // Získej data o složkách
-    const archiveFolderData = JSON.parse(archiveFolderSelect.options[archiveFolderSelect.selectedIndex].dataset.folderData);
-    const gmailAllMailData = JSON.parse(gmailAllMailSelect.options[gmailAllMailSelect.selectedIndex].dataset.folderData);
-    const gmailTrashData = JSON.parse(gmailTrashSelect.options[gmailTrashSelect.selectedIndex].dataset.folderData);
+    const folderRefs = {
+      archiveFolder: getSelectedFolderRef(archiveFolderSelect),
+      gmailAllMail: getSelectedFolderRef(gmailAllMailSelect)
+    };
     
-    stopState.requested = false;
     scanBtn.disabled = true;
     stopBtn.disabled = false;  // Reset pro novou analýzu
     stopBtn.style.display = 'inline-block';
@@ -271,11 +278,7 @@ async function scanForDuplicates() {
     
     const response = await messenger.runtime.sendMessage({
       action: 'findDuplicates',
-      folderPaths: {
-        archiveFolder: archiveFolderData.path,
-        gmailAllMail: gmailAllMailData.path,
-        gmailTrash: gmailTrashData.path
-      }
+      folderRefs
     });
     
     if (response.success) {
@@ -315,34 +318,36 @@ async function moveDuplicates() {
   
   try {
     moveBtn.disabled = true;
+    moveBtn.style.display = 'none';  // Skryjeme Move tlačítko
     scanBtn.disabled = true;
+    stopBtn.disabled = false;  // Reset pro nový přesun
+    stopBtn.style.display = 'inline-block';  // Zobrazíme Stop
     updateStatus(`Přesouvám ${gmailIds.length} emailů...`, 'loading');
     
     const response = await messenger.runtime.sendMessage({
       action: 'moveDuplicates',
-      duplicateIds: gmailIds
+      duplicateIds: gmailIds,
+      gmailTrash: getSelectedFolderRef(gmailTrashSelect)
     });
     
     if (response.success) {
-      updateStatus('Emaily byly úspěšně přesunuty do koše', 'success');
+      const movedIds = new Set(response.movedIds);
+      const failedCount = response.stopped ? 0 : gmailIds.length - movedIds.size;
       
-      // Odstraníme přesunuté položky ze seznamu
+      // Odstraníme ze seznamu jen skutečně přesunuté položky
       checkboxes.forEach(cb => {
-        cb.closest('.duplicate-item').remove();
+        if (movedIds.has(parseInt(cb.dataset.gmailId))) {
+          cb.closest('.duplicate-item').remove();
+        }
       });
+      duplicatesData = duplicatesData.filter(dup => !movedIds.has(dup.gmailMessage.id));
       
-      // Aktualizujeme data
-      duplicatesData = duplicatesData.filter(dup => 
-        !gmailIds.includes(dup.gmailMessage.id)
-      );
-      
-      updateCounter();
-      
-      if (duplicatesData.length === 0) {
-        duplicatesList.style.display = 'none';
-        selectAllContainer.style.display = 'none';
-        moveBtn.style.display = 'none';
-        counterDiv.style.display = 'none';
+      if (response.stopped) {
+        updateStatus(`Přesun zastaven. Přesunuto ${movedIds.size} z ${gmailIds.length} emailů`, 'info');
+      } else if (failedCount > 0) {
+        updateStatus(`Přesunuto ${movedIds.size} z ${gmailIds.length} emailů, ${failedCount} se nepodařilo přesunout`, 'error');
+      } else {
+        updateStatus(`Přesunuto ${movedIds.size} emailů do koše`, 'success');
       }
     } else {
       updateStatus(`Chyba: ${response.error}`, 'error');
@@ -350,8 +355,18 @@ async function moveDuplicates() {
   } catch (error) {
     updateStatus(`Chyba: ${error.message}`, 'error');
   } finally {
-    moveBtn.disabled = false;
+    stopBtn.style.display = 'none';
     scanBtn.disabled = false;
+    moveBtn.disabled = false;
+    
+    if (duplicatesData.length === 0) {
+      duplicatesList.style.display = 'none';
+      selectAllContainer.style.display = 'none';
+      counterDiv.style.display = 'none';
+    } else {
+      moveBtn.style.display = 'inline-block';
+      updateCounter();
+    }
   }
 }
 
@@ -370,7 +385,6 @@ function toggleSelectAll() {
  * Zastaví probíhající operaci
  */
 async function stopOperation() {
-  stopState.requested = true;
   stopBtn.disabled = true;
   updateStatus('Zastavuji operaci...', 'loading');
   
@@ -397,6 +411,23 @@ function adjustLayoutForWindowSize() {
     duplicatesList.style.maxHeight = `${availableHeight}px`;
   } else {
     duplicatesList.style.maxHeight = '200px'; // Minimum
+  }
+}
+
+
+/**
+ * Aktualizuje titulek s verzí z manifestu
+ */
+async function updateTitleWithVersion() {
+  try {
+    const manifest = await messenger.runtime.getManifest();
+    const version = manifest.version;
+    const titleElement = document.querySelector('h1');
+    if (titleElement) {
+      titleElement.textContent = `🗂️ Gmail Archive Deduplicator (v${version})`;
+    }
+  } catch (error) {
+    console.error('Chyba při načítání verze:', error);
   }
 }
 
@@ -427,3 +458,6 @@ loadFolders();
 
 // Nastav správnou velikost při prvním načtení
 adjustLayoutForWindowSize();
+
+// Aktualizuj titulek s verzí
+updateTitleWithVersion();
