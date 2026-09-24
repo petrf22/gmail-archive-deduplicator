@@ -1,1 +1,3 @@
 gmail-archive-deduplicator.xpi
+node_modules/
+dist/

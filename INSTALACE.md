@@ -21,18 +21,13 @@ Před vytvořením .xpi balíčku potřebujete vytvořit ikony. Můžete použí
 
 ### Krok 1: Vytvoření .xpi balíčku
 
-**Na Windows:**
-```cmd
-cd cesta\k\gmail-archive-deduplicator
-powershell Compress-Archive -Path * -DestinationPath ..\gmail-archive-deduplicator.zip
-ren ..\gmail-archive-deduplicator.zip gmail-archive-deduplicator.xpi
-```
-
-**Na Linux/Mac:**
+Vyžaduje Node.js 18+ (Windows, Linux i Mac):
 ```bash
 cd cesta/k/gmail-archive-deduplicator
-zip -r ../gmail-archive-deduplicator.xpi *
+npm install
+npm run package
 ```
+Balíček `gmail-archive-deduplicator.xpi` vznikne v kořeni projektu.
 
 ### Krok 2: Instalace v Thunderbirdu
 
@@ -54,14 +49,14 @@ zip -r ../gmail-archive-deduplicator.xpi *
 
 ## Testování bez instalace (vývojářský režim)
 
-Pro rychlé testování bez vytváření .xpi:
+Pro rychlé testování bez vytváření .xpi (nejdřív `npm install` a `npm run build`):
 
 1. Otevřete Thunderbird
 2. Stiskněte `Ctrl+Shift+A`
 3. Klikněte na ikonu ozubeného kola
 4. Vyberte "Ladit doplňky"
 5. Klikněte "Načíst dočasný doplněk"
-6. Vyberte soubor `manifest.json` ze složky doplňku
+6. Vyberte soubor `dist/manifest.json`
 7. Doplněk se načte dočasně (zmizí po restartu)
 
 ## Ověření instalace

@@ -1,23 +1,62 @@
-// popup.js - Logika pro popup okno
+// popup.ts - Logika pro popup okno
 
-let duplicatesData = [];
+import type {
+  BackgroundRequest,
+  Duplicate,
+  FolderRef,
+  MailFolder,
+  ProgressMessage,
+  ResponseFor,
+} from './types';
 
-const scanBtn = document.getElementById('scanBtn');
-const stopBtn = document.getElementById('stopBtn');
-const moveBtn = document.getElementById('moveBtn');
-const statusDiv = document.getElementById('status');
-const duplicatesList = document.getElementById('duplicatesList');
-const counterDiv = document.getElementById('counter');
-const selectAllCheckbox = document.getElementById('selectAll');
-const selectAllContainer = document.getElementById('selectAllContainer');
+type StatusType = 'loading' | 'error' | 'success' | 'info';
+
+interface FolderInfo {
+  id: string | undefined;
+  accountId: string;
+  path: string;
+  name: string | undefined;
+  accountName: string;
+  accountType: string;
+}
+
+let duplicatesData: Duplicate[] = [];
+
+function getElement<T extends HTMLElement>(id: string): T {
+  const element = document.getElementById(id);
+  if (!element) {
+    throw new Error(`Element #${id} nebyl nalezen v popup.html`);
+  }
+  return element as T;
+}
+
+const scanBtn = getElement<HTMLButtonElement>('scanBtn');
+const stopBtn = getElement<HTMLButtonElement>('stopBtn');
+const moveBtn = getElement<HTMLButtonElement>('moveBtn');
+const statusDiv = getElement<HTMLDivElement>('status');
+const duplicatesList = getElement<HTMLDivElement>('duplicatesList');
+const counterDiv = getElement<HTMLDivElement>('counter');
+const selectAllCheckbox = getElement<HTMLInputElement>('selectAll');
+const selectAllContainer = getElement<HTMLDivElement>('selectAllContainer');
 
 // Dropdown elementy
-const archiveFolderSelect = document.getElementById('archiveFolder');
-const gmailAllMailSelect = document.getElementById('gmailAllMail');
-const gmailTrashSelect = document.getElementById('gmailTrash');
+const archiveFolderSelect = getElement<HTMLSelectElement>('archiveFolder');
+const gmailAllMailSelect = getElement<HTMLSelectElement>('gmailAllMail');
+const gmailTrashSelect = getElement<HTMLSelectElement>('gmailTrash');
 
-// Naslouchání progress zprávám z background.js
-messenger.runtime.onMessage.addListener((message, sender, sendResponse) => {
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Pošle požadavek do background.ts a vrátí typovanou odpověď
+ */
+function send<R extends BackgroundRequest>(request: R): Promise<ResponseFor[R['action']]> {
+  return messenger.runtime.sendMessage(request);
+}
+
+// Naslouchání progress zprávám z background.ts
+messenger.runtime.onMessage.addListener((message: ProgressMessage | BackgroundRequest) => {
   if (message.action === 'progress') {
     updateStatus(message.message, 'loading');
   }
@@ -26,39 +65,45 @@ messenger.runtime.onMessage.addListener((message, sender, sendResponse) => {
 /**
  * Načte všechny složky ze všech účtů
  */
-async function loadFolders() {
+async function loadFolders(): Promise<void> {
   try {
-    const accounts = await messenger.accounts.list();
-    
-    const localFolders = [];
-    const gmailFolders = [];
-    
+    const accounts = await messenger.accounts.list(true);
+
+    const localFolders: FolderInfo[] = [];
+    const gmailFolders: FolderInfo[] = [];
+
     // Projdeme všechny účty a jejich složky
     for (const account of accounts) {
-      await collectFolders(account.folders, account, localFolders, gmailFolders);
+      collectFolders(account.folders, account, localFolders, gmailFolders);
     }
-    
+
     // Naplníme dropdowny
     populateFolderSelect(archiveFolderSelect, localFolders, 'Vyberte archivní složku');
     populateFolderSelect(gmailAllMailSelect, gmailFolders, 'Vyberte Gmail All Mail');
     populateFolderSelect(gmailTrashSelect, gmailFolders, 'Vyberte Gmail Koš');
-    
+
     updateStatus('Vyberte složky a klikněte na "Vyhledat duplicity"', 'info');
-    
+
   } catch (error) {
-    updateStatus(`Chyba při načítání složek: ${error.message}`, 'error');
+    updateStatus(`Chyba při načítání složek: ${errorMessage(error)}`, 'error');
   }
 }
 
 /**
  * Rekurzivně projde složky a seřadí je podle typu účtu
  */
-async function collectFolders(folders, account, localFolders, gmailFolders, path = '') {
+function collectFolders(
+  folders: MailFolder[] | undefined,
+  account: messenger.accounts.MailAccount,
+  localFolders: FolderInfo[],
+  gmailFolders: FolderInfo[],
+  path = ''
+): void {
   if (!folders) return;
-  
+
   for (const folder of folders) {
-    const folderPath = path ? `${path}/${folder.name}` : folder.name;
-    const folderInfo = {
+    const folderPath = path ? `${path}/${folder.name}` : (folder.name ?? '');
+    const folderInfo: FolderInfo = {
       id: folder.id,
       accountId: account.id,
       path: folder.path || folderPath,
@@ -66,43 +111,46 @@ async function collectFolders(folders, account, localFolders, gmailFolders, path
       accountName: account.name,
       accountType: account.type
     };
-    
+
     // Rozděl podle typu účtu
     if (account.type === 'none') {
       localFolders.push(folderInfo);
     } else if (account.type === 'imap') {
       gmailFolders.push(folderInfo);
     }
-    
+
     // Rekurzivně projdi podsložky
     if (folder.subFolders && folder.subFolders.length > 0) {
-      await collectFolders(folder.subFolders, account, localFolders, gmailFolders, folderPath);
+      collectFolders(folder.subFolders, account, localFolders, gmailFolders, folderPath);
     }
   }
+}
+
+function folderKey(folderInfo: FolderInfo): string {
+  return `${folderInfo.accountId}|${folderInfo.path}`;
 }
 
 /**
  * Naplní dropdown seznam složek
  */
-function populateFolderSelect(selectElement, folders, placeholder) {
+function populateFolderSelect(selectElement: HTMLSelectElement, folders: FolderInfo[], placeholder: string): void {
   selectElement.innerHTML = '';
-  
+
   // Placeholder
   const placeholderOption = document.createElement('option');
   placeholderOption.value = '';
   placeholderOption.textContent = placeholder;
   selectElement.appendChild(placeholderOption);
-  
+
   // Přidej složky
   folders.forEach(folderInfo => {
     const option = document.createElement('option');
-    option.value = `${folderInfo.accountId}|${folderInfo.path}`;
+    option.value = folderKey(folderInfo);
     option.textContent = `${folderInfo.accountName} → ${folderInfo.path}`;
-    option.dataset.folderId = folderInfo.id;
     option.dataset.folderData = JSON.stringify(folderInfo);
     selectElement.appendChild(option);
   });
-  
+
   // Auto-select pokud je možnost jednoznačná
   if (folders.length === 1) {
     selectElement.selectedIndex = 1;
@@ -115,30 +163,29 @@ function populateFolderSelect(selectElement, folders, placeholder) {
 /**
  * Inteligentní auto-select složek podle jména
  */
-function autoSelectFolder(selectElement, folders) {
-  let bestMatch = null;
-  
+function autoSelectFolder(selectElement: HTMLSelectElement, folders: FolderInfo[]): void {
+  let bestMatch: FolderInfo | undefined;
+
   if (selectElement === archiveFolderSelect) {
     // Hledej "Archive", "Archiv", "Archives"
-    bestMatch = folders.find(f => 
-      /^(Archive|Archiv|Archives)$/i.test(f.name)
+    bestMatch = folders.find(f =>
+      /^(Archive|Archiv|Archives)$/i.test(f.name ?? '')
     );
   } else if (selectElement === gmailAllMailSelect) {
     // Hledej "All Mail", "Všechny zprávy"
-    bestMatch = folders.find(f => 
+    bestMatch = folders.find(f =>
       /All Mail|Všechny zprávy|Všechna pošta/i.test(f.path)
     );
   } else if (selectElement === gmailTrashSelect) {
     // Hledej "Trash", "Koš"
-    bestMatch = folders.find(f => 
+    bestMatch = folders.find(f =>
       /Trash|Koš/i.test(f.path)
     );
   }
-  
+
   if (bestMatch) {
-    // Najdi index v selectu
-    const options = Array.from(selectElement.options);
-    const index = options.findIndex(opt => opt.value === `${bestMatch.accountId}|${bestMatch.path}`);
+    const key = folderKey(bestMatch);
+    const index = Array.from(selectElement.options).findIndex(opt => opt.value === key);
     if (index !== -1) {
       selectElement.selectedIndex = index;
     }
@@ -148,15 +195,15 @@ function autoSelectFolder(selectElement, folders) {
 /**
  * Vrátí vybranou složku jako {accountId, path} - samotná cesta není napříč účty unikátní
  */
-function getSelectedFolderRef(selectElement) {
-  const folderInfo = JSON.parse(selectElement.options[selectElement.selectedIndex].dataset.folderData);
+function getSelectedFolderRef(selectElement: HTMLSelectElement): FolderRef {
+  const folderInfo: FolderInfo = JSON.parse(selectElement.options[selectElement.selectedIndex].dataset.folderData!);
   return { accountId: folderInfo.accountId, path: folderInfo.path };
 }
 
 /**
  * Aktualizuje status zprávu
  */
-function updateStatus(message, type = 'loading') {
+function updateStatus(message: string, type: StatusType = 'loading'): void {
   statusDiv.textContent = message;
   statusDiv.className = `status ${type}`;
 }
@@ -164,10 +211,9 @@ function updateStatus(message, type = 'loading') {
 /**
  * Formátuje datum
  */
-function formatDate(dateString) {
-  if (!dateString) return 'Neznámé datum';
-  const date = new Date(dateString);
-  return date.toLocaleString('cs-CZ', {
+function formatDate(date: Duplicate['date'] | undefined): string {
+  if (!date) return 'Neznámé datum';
+  return new Date(date).toLocaleString('cs-CZ', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',
@@ -179,9 +225,9 @@ function formatDate(dateString) {
 /**
  * Zobrazí seznam duplicit
  */
-function displayDuplicates(duplicates) {
+function displayDuplicates(duplicates: Duplicate[]): void {
   duplicatesList.innerHTML = '';
-  
+
   if (duplicates.length === 0) {
     updateStatus('Žádné duplicity nebyly nalezeny', 'success');
     duplicatesList.style.display = 'none';
@@ -189,39 +235,39 @@ function displayDuplicates(duplicates) {
     counterDiv.style.display = 'none';
     return;
   }
-  
+
   duplicates.forEach((dup, index) => {
     const item = document.createElement('div');
     item.className = 'duplicate-item';
-    
+
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
     checkbox.className = 'duplicate-checkbox';
     checkbox.id = `dup-${index}`;
     checkbox.checked = true;
-    checkbox.dataset.gmailId = dup.gmailMessage.id;
+    checkbox.dataset.gmailId = String(dup.gmailMessage.id);
     checkbox.addEventListener('change', updateCounter);
-    
+
     const info = document.createElement('div');
     info.className = 'duplicate-info';
-    
+
     const subject = document.createElement('div');
     subject.className = 'duplicate-subject';
     subject.textContent = dup.subject || '(Bez předmětu)';
-    
+
     const details = document.createElement('div');
     details.className = 'duplicate-details';
     details.textContent = `Od: ${dup.author || 'Neznámý'} | ${formatDate(dup.date)}`;
-    
+
     info.appendChild(subject);
     info.appendChild(details);
-    
+
     item.appendChild(checkbox);
     item.appendChild(info);
-    
+
     duplicatesList.appendChild(item);
   });
-  
+
   duplicatesList.style.display = 'block';
   selectAllContainer.style.display = 'block';
   moveBtn.style.display = 'inline-block';
@@ -232,20 +278,20 @@ function displayDuplicates(duplicates) {
 /**
  * Aktualizuje počítadlo vybraných emailů
  */
-function updateCounter() {
+function updateCounter(): void {
   const checkboxes = document.querySelectorAll('.duplicate-checkbox');
   const checked = document.querySelectorAll('.duplicate-checkbox:checked');
-  
+
   counterDiv.textContent = `Vybráno: ${checked.length} z ${checkboxes.length}`;
   counterDiv.style.display = 'block';
-  
+
   moveBtn.disabled = checked.length === 0;
 }
 
 /**
  * Vyhledá duplicity
  */
-async function scanForDuplicates() {
+async function scanForDuplicates(): Promise<void> {
   try {
     // Validace výběru složek
     if (!archiveFolderSelect.value) {
@@ -260,13 +306,12 @@ async function scanForDuplicates() {
       updateStatus('Vyberte Gmail složku "Koš"', 'error');
       return;
     }
-    
-    // Získej data o složkách
+
     const folderRefs = {
       archiveFolder: getSelectedFolderRef(archiveFolderSelect),
       gmailAllMail: getSelectedFolderRef(gmailAllMailSelect)
     };
-    
+
     scanBtn.disabled = true;
     stopBtn.disabled = false;  // Reset pro novou analýzu
     stopBtn.style.display = 'inline-block';
@@ -275,12 +320,9 @@ async function scanForDuplicates() {
     selectAllContainer.style.display = 'none';
     counterDiv.style.display = 'none';
     updateStatus('Spouštím analýzu...', 'loading');
-    
-    const response = await messenger.runtime.sendMessage({
-      action: 'findDuplicates',
-      folderRefs
-    });
-    
+
+    const response = await send({ action: 'findDuplicates', folderRefs });
+
     if (response.success) {
       duplicatesData = response.data.duplicates;
       displayDuplicates(duplicatesData);
@@ -288,7 +330,7 @@ async function scanForDuplicates() {
       updateStatus(`Chyba: ${response.error}`, 'error');
     }
   } catch (error) {
-    updateStatus(`Chyba: ${error.message}`, 'error');
+    updateStatus(`Chyba: ${errorMessage(error)}`, 'error');
   } finally {
     scanBtn.disabled = false;
     stopBtn.style.display = 'none';
@@ -298,24 +340,24 @@ async function scanForDuplicates() {
 /**
  * Přesune vybrané duplicity do koše
  */
-async function moveDuplicates() {
-  const checkboxes = document.querySelectorAll('.duplicate-checkbox:checked');
-  const gmailIds = Array.from(checkboxes).map(cb => parseInt(cb.dataset.gmailId));
-  
+async function moveDuplicates(): Promise<void> {
+  const checkboxes = document.querySelectorAll<HTMLInputElement>('.duplicate-checkbox:checked');
+  const gmailIds = Array.from(checkboxes).map(cb => parseInt(cb.dataset.gmailId!));
+
   if (gmailIds.length === 0) {
     updateStatus('Není vybrán žádný email', 'error');
     return;
   }
-  
+
   const confirmed = confirm(
     `Opravdu chcete přesunout ${gmailIds.length} emailů do koše Gmail?\n\n` +
     'Tato akce odstraní duplicitní emaily z Gmail účtu (ze složky All Mail).'
   );
-  
+
   if (!confirmed) {
     return;
   }
-  
+
   try {
     moveBtn.disabled = true;
     moveBtn.style.display = 'none';  // Skryjeme Move tlačítko
@@ -323,25 +365,25 @@ async function moveDuplicates() {
     stopBtn.disabled = false;  // Reset pro nový přesun
     stopBtn.style.display = 'inline-block';  // Zobrazíme Stop
     updateStatus(`Přesouvám ${gmailIds.length} emailů...`, 'loading');
-    
-    const response = await messenger.runtime.sendMessage({
+
+    const response = await send({
       action: 'moveDuplicates',
       duplicateIds: gmailIds,
       gmailTrash: getSelectedFolderRef(gmailTrashSelect)
     });
-    
+
     if (response.success) {
       const movedIds = new Set(response.movedIds);
       const failedCount = response.stopped ? 0 : gmailIds.length - movedIds.size;
-      
+
       // Odstraníme ze seznamu jen skutečně přesunuté položky
       checkboxes.forEach(cb => {
-        if (movedIds.has(parseInt(cb.dataset.gmailId))) {
-          cb.closest('.duplicate-item').remove();
+        if (movedIds.has(parseInt(cb.dataset.gmailId!))) {
+          cb.closest('.duplicate-item')?.remove();
         }
       });
       duplicatesData = duplicatesData.filter(dup => !movedIds.has(dup.gmailMessage.id));
-      
+
       if (response.stopped) {
         updateStatus(`Přesun zastaven. Přesunuto ${movedIds.size} z ${gmailIds.length} emailů`, 'info');
       } else if (failedCount > 0) {
@@ -353,12 +395,12 @@ async function moveDuplicates() {
       updateStatus(`Chyba: ${response.error}`, 'error');
     }
   } catch (error) {
-    updateStatus(`Chyba: ${error.message}`, 'error');
+    updateStatus(`Chyba: ${errorMessage(error)}`, 'error');
   } finally {
     stopBtn.style.display = 'none';
     scanBtn.disabled = false;
     moveBtn.disabled = false;
-    
+
     if (duplicatesData.length === 0) {
       duplicatesList.style.display = 'none';
       selectAllContainer.style.display = 'none';
@@ -373,9 +415,8 @@ async function moveDuplicates() {
 /**
  * Vybere/odznačí všechny checkboxy
  */
-function toggleSelectAll() {
-  const checkboxes = document.querySelectorAll('.duplicate-checkbox');
-  checkboxes.forEach(cb => {
+function toggleSelectAll(): void {
+  document.querySelectorAll<HTMLInputElement>('.duplicate-checkbox').forEach(cb => {
     cb.checked = selectAllCheckbox.checked;
   });
   updateCounter();
@@ -384,50 +425,34 @@ function toggleSelectAll() {
 /**
  * Zastaví probíhající operaci
  */
-async function stopOperation() {
+async function stopOperation(): Promise<void> {
   stopBtn.disabled = true;
   updateStatus('Zastavuji operaci...', 'loading');
-  
+
   try {
-    await messenger.runtime.sendMessage({ action: 'stop' });
+    await send({ action: 'stop' });
   } catch (error) {
     console.error('Chyba při zastavování:', error);
   }
 }
 
-
 /**
  * Upraví výšku seznamu duplicit podle velikosti okna
  */
-function adjustLayoutForWindowSize() {
-  const windowHeight = window.innerHeight;
-  const duplicatesList = document.getElementById('duplicatesList');
-  
-  // Vypočítáme dostupnou výšku pro seznam
-  // Odečteme místo pro header, folder selection, status, buttons
-  const availableHeight = windowHeight - 350; // 350px pro ostatní elementy
-  
-  if (availableHeight > 200) {
-    duplicatesList.style.maxHeight = `${availableHeight}px`;
-  } else {
-    duplicatesList.style.maxHeight = '200px'; // Minimum
-  }
+function adjustLayoutForWindowSize(): void {
+  // Odečteme místo pro header, folder selection, status, buttons (350px)
+  const availableHeight = window.innerHeight - 350;
+  // Minimum 200px
+  duplicatesList.style.maxHeight = `${Math.max(availableHeight, 200)}px`;
 }
-
 
 /**
  * Aktualizuje titulek s verzí z manifestu
  */
-async function updateTitleWithVersion() {
-  try {
-    const manifest = await messenger.runtime.getManifest();
-    const version = manifest.version;
-    const titleElement = document.querySelector('h1');
-    if (titleElement) {
-      titleElement.textContent = `🗂️ Gmail Archive Deduplicator (v${version})`;
-    }
-  } catch (error) {
-    console.error('Chyba při načítání verze:', error);
+function updateTitleWithVersion(): void {
+  const titleElement = document.querySelector('h1');
+  if (titleElement) {
+    titleElement.textContent = `🗂️ Gmail Archive Deduplicator (v${messenger.runtime.getManifest().version})`;
   }
 }
 
@@ -438,15 +463,10 @@ moveBtn.addEventListener('click', moveDuplicates);
 selectAllCheckbox.addEventListener('change', toggleSelectAll);
 
 // Zastavit operaci při zavření okna
-window.addEventListener('beforeunload', async () => {
+window.addEventListener('beforeunload', () => {
   if (stopBtn.style.display !== 'none') {
     // Operace běží, zastavíme ji
-    try {
-      await messenger.runtime.sendMessage({ action: 'stop' });
-      console.log('Operace zastavena kvůli zavření okna');
-    } catch (error) {
-      console.error('Chyba při zastavování:', error);
-    }
+    send({ action: 'stop' }).catch(error => console.error('Chyba při zastavování:', error));
   }
 });
 

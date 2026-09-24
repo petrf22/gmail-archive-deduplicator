@@ -1,0 +1,20 @@
+{
+  "name": "gmail-archive-deduplicator",
+  "version": "1.7.0",
+  "private": true,
+  "description": "Doplněk pro Thunderbird, který odstraňuje duplicitní emaily mezi lokálním archivem a Gmail účtem",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc",
+    "build": "tsc && node scripts/build.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "package": "npm run build && web-ext build --source-dir dist --artifacts-dir . --filename gmail-archive-deduplicator.xpi --overwrite-dest"
+  },
+  "devDependencies": {
+    "@types/thunderbird-webext-browser": "^127.0.0",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
+    "web-ext": "^10.7.0"
+  }
+}

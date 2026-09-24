@@ -33,8 +33,9 @@ gmail-archive-deduplicator/
 
 #### Build skripty:
 ```
-├── 🔨 build.sh               (1.3 KB)  🐧 Linux/Mac build
-└── 🔨 build.bat              (1.2 KB)  🪟 Windows build
+├── 🔨 package.json                     npm skripty (build, package)
+├── 🔨 tsconfig.json                    Nastavení TypeScriptu
+└── 🔨 scripts/build.mjs                Sestavení přes esbuild do dist/
 ```
 
 #### Dokumentace (česky):
@@ -64,9 +65,8 @@ gmail-archive-deduplicator/
 ### Varianta B: Build ze zdrojových kódů
 ```bash
 cd gmail-archive-deduplicator
-./build.sh          # Linux/Mac
-# nebo
-build.bat           # Windows
+npm install
+npm run package
 ```
 
 ---

@@ -29,11 +29,11 @@ Tento doplněk automaticky detekuje a odstraňuje duplicitní emaily mezi lokál
 
 ### Metoda 2: Instalace z vývojářského režimu (pro testování)
 
-1. Stáhněte celou složku s doplňkem
+1. Stáhněte celou složku s doplňkem a sestavte ho: `npm install` a `npm run build`
 2. V Thunderbirdu otevřete **Menu** → **Add-ons and Themes** (Ctrl+Shift+A)
 3. Klikněte na ikonu ozubeného kola → **Debug Add-ons**
 4. Klikněte na **Load Temporary Add-on**
-5. Vyberte soubor `manifest.json` ze složky doplňku
+5. Vyberte soubor `dist/manifest.json`
 
 ## Použití
 
@@ -102,30 +102,37 @@ Doplněk automaticky hledá tyto názvy složek:
 
 ```
 gmail-archive-deduplicator/
-├── manifest.json          # Konfigurace doplňku
-├── background.js          # Hlavní logika detekce duplicit
-├── popup.html            # Uživatelské rozhraní
-├── popup.js              # Logika UI
-├── icons/                # Ikony doplňku (vytvořte vlastní)
-│   ├── icon-16.png
-│   ├── icon-32.png
-│   └── icon-48.png
-└── README.md             # Tento soubor
+├── src/
+│   ├── manifest.json      # Konfigurace doplňku
+│   ├── background.ts      # Hlavní logika detekce duplicit
+│   ├── popup.html         # Uživatelské rozhraní
+│   ├── popup.ts           # Logika UI
+│   ├── types.ts           # Sdílené typy (zprávy mezi popup a background)
+│   └── icons/             # Ikony doplňku
+├── scripts/build.mjs      # Sestavení do dist/ (esbuild)
+├── package.json
+└── tsconfig.json
 ```
 
-## Vytvoření .xpi balíčku (pro distribuci)
+## Sestavení (TypeScript)
+
+Vyžaduje Node.js 18+.
 
 ```bash
-cd gmail-archive-deduplicator
-zip -r ../gmail-archive-deduplicator.xpi *
+npm install
+npm run build      # kontrola typů + sestavení do dist/
+npm run package    # build + zabalení do gmail-archive-deduplicator.xpi
+npm run typecheck  # jen kontrola typů
+npm run watch      # průběžné sestavování při změnách .ts
 ```
 
 ## Vývoj
 
 Pro úpravu kódu:
-1. Upravte soubory podle potřeby
-2. Načtěte doplněk znovu v Debug režimu
-3. Otevřete konzoli pro ladění: Tools → Developer Tools → Browser Console
+1. Upravte soubory v `src/`
+2. Spusťte `npm run build` (nebo nechte běžet `npm run watch`)
+3. Načtěte doplněk znovu v Debug režimu z `dist/manifest.json`
+4. Otevřete konzoli pro ladění: Tools → Developer Tools → Browser Console
 
 ## Podpora
 

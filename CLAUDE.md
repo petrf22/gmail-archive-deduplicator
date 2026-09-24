@@ -8,21 +8,27 @@ Doplněk pro Thunderbird (MailExtension, Manifest V2, Thunderbird ≥ 102). Hled
 
 ## Build a spuštění
 
-- `./build.sh` (Linux/Mac) nebo `build.bat` (Windows) zabalí `src/` do `gmail-archive-deduplicator.xpi` v kořeni repozitáře. Do balíčku jdou jen `manifest.json`, `background.js`, `popup.html`, `popup.js` a `icons/`. Nový zdrojový soubor je proto nutné přidat do obou skriptů.
-- Nejsou tu testy, linter ani npm. Testuje se ručně v Thunderbirdu: Doplňky (Ctrl+Shift+A) → ozubené kolo → Debug Add-ons → Load Temporary Add-on → `src/manifest.json`. Logy najdeš v Nástroje → Vývojářské nástroje → Browser Console, případně přes Inspect u background stránky doplňku.
-- Při každé změně chování zvyš `version` v `src/manifest.json`. Popup zobrazuje verzi v titulku (čte ji přes `runtime.getManifest()`).
+Zdrojáky jsou v TypeScriptu (`src/*.ts`). esbuild je bundluje do `dist/` jako IIFE (bez modulů, protože manifest je načítá jako klasické skripty). `manifest.json`, `popup.html` a `icons/` se kopírují beze změny.
+
+- `npm run typecheck`: `tsc` (strict, noEmit). Jiná automatická kontrola tu není, testy ani linter nejsou.
+- `npm run build`: typecheck a sestavení do `dist/` (`scripts/build.mjs`)
+- `npm run watch`: esbuild watch (statické soubory se při změně nekopírují)
+- `npm run package`: build a pak `web-ext build` do `gmail-archive-deduplicator.xpi` v kořeni repozitáře
+- Testuje se ručně v Thunderbirdu: Doplňky (Ctrl+Shift+A) → ozubené kolo → Debug Add-ons → Load Temporary Add-on → `dist/manifest.json`. Logy najdeš v Nástroje → Vývojářské nástroje → Browser Console, případně přes Inspect u background stránky doplňku.
+- Při každé změně chování zvyš `version` v `src/manifest.json` (a v `package.json`). Popup zobrazuje verzi v titulku.
+- Typy WebExtension API pro Thunderbird jsou z `@types/thunderbird-webext-browser` (globální namespace `messenger`).
 
 ## Architektura
 
-Doplněk má dva kontexty. Komunikují spolu výhradně zprávami přes `messenger.runtime`:
+Doplněk má dva kontexty. Komunikují spolu výhradně zprávami přes `messenger.runtime`. Protokol je typovaný v `src/types.ts`: `BackgroundRequest` je discriminated union podle `action` a `ResponseFor` přiřazuje ke každé akci typ odpovědi. Popup posílá požadavky přes typovaný helper `send()`, background je zpracovává v `handleRequest()` a odpovídá vráceným Promise.
 
-- **`src/popup.js` / `popup.html`** tvoří UI. Otevírá se jako browser_action popup, nebo jako samostatné okno z položky v menu Nástroje, kterou registruje `background.js`. UI vypíše všechny složky: účty typu `none` bere jako lokální, účty typu `imap` jako Gmail. Pravděpodobné složky předvybere podle jména a posílá tyto zprávy:
-  - `{action:'findDuplicates', folderRefs:{archiveFolder, gmailAllMail}}`
-  - `{action:'moveDuplicates', duplicateIds:[id Gmail zpráv], gmailTrash}`, odpověď `{success, stopped, movedIds}`
+- **`src/popup.ts` / `popup.html`** tvoří UI. Otevírá se jako browser_action popup, nebo jako samostatné okno z položky v menu Nástroje, kterou registruje background. UI vypíše všechny složky: účty typu `none` bere jako lokální, účty typu `imap` jako Gmail. Pravděpodobné složky předvybere podle jména a posílá tyto zprávy:
+  - `findDuplicates` s `folderRefs:{archiveFolder, gmailAllMail}`
+  - `moveDuplicates` s `duplicateIds` a `gmailTrash`, odpověď `{success, stopped, movedIds}`
+  - `stop`, který se posílá i při `beforeunload`, pokud nějaká operace běží
+- **`src/background.ts`** obsahuje veškerou logiku práce s poštou. Průběh posílá zpět přes `sendProgress()` jako `{action:'progress', message}`. Když žádný popup není otevřený, chybu ignoruje.
 
-  Složky se předávají jako `{accountId, path}`. Samotná `path` není napříč účty unikátní (např. `/Trash` je v lokálních složkách i v IMAP).
-  - `{action:'stop'}`, který se posílá i při `beforeunload`, pokud nějaká operace běží
-- **`src/background.js`** obsahuje veškerou logiku práce s poštou. Průběh posílá zpět přes `sendProgress()` jako `{action:'progress', message}`. Když žádný popup není otevřený, chybu ignoruje.
+Složky se předávají jako `FolderRef` = `{accountId, path}`, protože samotná `path` není napříč účty unikátní (např. `/Trash` je v lokálních složkách i v IMAP). `accounts.list`/`get` volej s `true`, jinak novější Thunderbird složky nevrací.
 
 Postup hledání duplicit (`findDuplicates`):
 1. Najde složky přes `findFolder({accountId, path})`. Když je nedostane, detekuje je automaticky podle jména (`findLocalArchiveFolder` apod.).
