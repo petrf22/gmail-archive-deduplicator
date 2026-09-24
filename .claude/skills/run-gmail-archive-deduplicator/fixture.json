@@ -1,0 +1,52 @@
+{
+  "_comment": "Testovací data pro fake-messenger.js a driver.mjs tb. Očekávané duplicity (Gmail id): 101, 102 (Message-ID), 106 (Message-ID v podsložce). Archivní 3 nemá Message-ID a Gmail 103 má stejný předmět/datum/autora - Thunderbird (a fake) ale archivní 3 dá syntetické md5:… ID, takže se přes hash NESPÁRUJE. 104 má stejný předmět/datum/autora jako archivní 4, ale jiné Message-ID -> NENÍ duplicita. Archivní 7 má stejné Message-ID jako 1 -> Gmail 101 se nesmí spárovat dvakrát. gmailFiller přidá do All Mail další zprávy (stránkování).",
+  "pageSize": 100,
+  "gmailFiller": 250,
+  "accounts": [
+    {
+      "id": "account1",
+      "name": "Místní složky",
+      "type": "none",
+      "folders": [
+        { "path": "/Inbox", "name": "Inbox" },
+        { "path": "/Trash", "name": "Trash" },
+        {
+          "path": "/Archives", "name": "Archives",
+          "subFolders": [{ "path": "/Archives/2024", "name": "2024" }]
+        }
+      ]
+    },
+    {
+      "id": "account2",
+      "name": "petr.test@gmail.com",
+      "type": "imap",
+      "folders": [
+        { "path": "/INBOX", "name": "Doručená pošta" },
+        {
+          "path": "/[Gmail]", "name": "[Gmail]",
+          "subFolders": [
+            { "path": "/[Gmail]/All Mail", "name": "All Mail" },
+            { "path": "/[Gmail]/Trash", "name": "Trash" }
+          ]
+        }
+      ]
+    }
+  ],
+  "messages": [
+    { "id": 1, "folder": "account1:/Archives", "headerMessageId": "a@test", "subject": "Faktura za září", "author": "Účetní <ucetni@firma.cz>", "date": "2024-09-01T10:00:00Z" },
+    { "id": 2, "folder": "account1:/Archives", "headerMessageId": "b@test", "subject": "Schůzka v pondělí", "author": "Jana <jana@example.com>", "date": "2024-09-02T08:30:00Z" },
+    { "id": 3, "folder": "account1:/Archives", "headerMessageId": "", "subject": "Zpráva bez Message-ID", "author": "Starý klient <old@example.com>", "date": "2024-09-03T12:00:00Z" },
+    { "id": 4, "folder": "account1:/Archives", "headerMessageId": "d@test", "subject": "Newsletter", "author": "news@example.com", "date": "2024-09-04T06:00:00Z" },
+    { "id": 5, "folder": "account1:/Archives", "headerMessageId": "e@test", "subject": "Jen v archivu", "author": "x@example.com", "date": "2024-09-05T06:00:00Z" },
+    { "id": 6, "folder": "account1:/Archives/2024", "headerMessageId": "f@test", "subject": "Dovolená 2024", "author": "cestovka@example.com", "date": "2024-06-10T09:00:00Z" },
+    { "id": 7, "folder": "account1:/Archives/2024", "headerMessageId": "a@test", "subject": "Faktura za září (kopie)", "author": "Účetní <ucetni@firma.cz>", "date": "2024-09-01T10:00:00Z" },
+    { "id": 8, "folder": "account1:/Trash", "headerMessageId": "g@test", "subject": "Místní koš", "author": "y@example.com", "date": "2024-01-01T00:00:00Z" },
+
+    { "id": 101, "folder": "account2:/[Gmail]/All Mail", "headerMessageId": "a@test", "subject": "Faktura za září", "author": "Účetní <ucetni@firma.cz>", "date": "2024-09-01T10:00:00Z" },
+    { "id": 102, "folder": "account2:/[Gmail]/All Mail", "headerMessageId": "b@test", "subject": "Schůzka v pondělí", "author": "Jana <jana@example.com>", "date": "2024-09-02T08:30:00Z" },
+    { "id": 103, "folder": "account2:/[Gmail]/All Mail", "headerMessageId": "c@test", "subject": "Zpráva bez Message-ID", "author": "Starý klient <old@example.com>", "date": "2024-09-03T12:00:00Z" },
+    { "id": 104, "folder": "account2:/[Gmail]/All Mail", "headerMessageId": "d2@test", "subject": "Newsletter", "author": "news@example.com", "date": "2024-09-04T06:00:00Z" },
+    { "id": 106, "folder": "account2:/[Gmail]/All Mail", "headerMessageId": "f@test", "subject": "Dovolená 2024", "author": "cestovka@example.com", "date": "2024-06-10T09:00:00Z" },
+    { "id": 107, "folder": "account2:/[Gmail]/All Mail", "headerMessageId": "h@test", "subject": "Jen v Gmailu", "author": "z@example.com", "date": "2024-09-07T06:00:00Z" }
+  ]
+}
